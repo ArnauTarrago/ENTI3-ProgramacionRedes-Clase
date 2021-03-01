@@ -4,9 +4,12 @@
 #include <mutex>
 #include <chrono>
 #include <string>
-#include "BSS.h"
-#include "Card.h"
 
+#define MAXPLAYERS 3
+
+#include "shared.h"
+#include "BSS.h"
+#include "Player.h"
 
 void HandlePlayer(sf::TcpSocket* sock)
 {
@@ -145,12 +148,11 @@ int main()
 
 	if (userType == 's')
 	{
-		BSS bss = BSS(3);
+		BSS bss;
 	}
 	else if (userType == 'c')
 	{
-		okConnection = ConnectPlayerToBSS(sock_0);
-		if (okConnection) HandlePlayer(sock_0);
+		Player player;
 	}
 
 	return 0;

@@ -114,7 +114,42 @@ public:
 #pragma endregion
 #pragma region RECEPCIONES ESPECIFICAS
     bool receive_peers(vector<Peer>* _peers) {
+        Packet pack = receive_message();
+        int msg = COMUNICATION_MSGS::MSG_NULL;
+        if (pack >> msg && msg == COMUNICATION_MSGS::MSG_PEERS_START) {
+            while (true) {
+                pack.clear();
+                pack = receive_message();
+                if (pack >> msg) {
+                    if (msg == COMUNICATION_MSGS::MSG_PEER) {
+                        int intIPAddress;
+                        IpAddress ipAddress;
+                        unsigned short port;
 
+                        if (pack >> intIPAddress >> port) {
+                            ipAddress = IpAddress(intIPAddress);
+                            _peers->push_back(Peer(ipAddress, port));
+                        }
+                        else {
+                            return false;
+                        }
+                    }
+                    else if (msg == COMUNICATION_MSGS::MSG_PEERS_END) {
+                        return true;
+                    }
+                    else {
+                        return false;
+                    }
+                }
+                else {
+                    return false;
+                }
+            }
+        }
+        else {
+            return false;
+        }
+        return false;
     }
 #pragma endregion
 

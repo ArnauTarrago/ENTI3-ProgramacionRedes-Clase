@@ -1,17 +1,15 @@
 #ifndef BSS_INCLUDED
 #define BSS_INCLUDED
 #include <SFML/Network.hpp>
-#include "shared.h"
 using namespace std;
 using namespace sf;
 struct BSS {
-    const int MAX_PLAYERS;
-	TcpSocket* sock = new TcpSocket();
+    const int MAX_PLAYERS = 3;
 	vector<Peer> peerList = vector<Peer>();
-	int port;
-	Socket::Status status;
+	int port = 0;
+	Socket::Status status = Socket::Status::Disconnected;
 	TcpListener dispatcher;
-	BSS(int _MAX_PLAYERS = 3) : MAX_PLAYERS(_MAX_PLAYERS){
+	BSS() : MAX_PLAYERS(MAXPLAYERS) {
         while (true) {
             cout << "Introduce un puerto" << endl;
             cin >> port;
@@ -43,19 +41,17 @@ struct BSS {
             }
             else {
                 cout << "Conexión establecida con : " << temp << endl;
-                if (peerList.size() > 0)
-                {
-                    // Informar al socket de la información de la gente en la peerList
-                    MessageManager message = MessageManager(temp);
-                    if (!message.send_peers(&peerList)) {
-                        cout << "Conexión perdida con : " << temp << endl;
-                    }
+                // Informar al socket de la información de la gente en la peerList
+                MessageManager message = MessageManager(temp);
+                if (!message.send_peers(&peerList)) {
+                    cout << "Conexión perdida con : " << temp << endl;
                 }
                 peerList.push_back(Peer(temp->getRemoteAddress(), temp->getRemotePort()));
                 temp->disconnect();
             }
         }
         dispatcher.close();
+        cout << "Todos los jugadores conectados. Cerrando." << endl;
 	}
 };
 
