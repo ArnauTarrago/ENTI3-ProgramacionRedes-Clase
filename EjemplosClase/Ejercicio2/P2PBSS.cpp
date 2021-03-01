@@ -85,7 +85,7 @@ bool InitializeBSS(sf::TcpSocket* sock)
 	sf::IpAddress ip = sf::IpAddress::LocalHost;
 	std::cout << ip.getLocalAddress() << ":" << std::to_string(port) << std::endl;
 
-	while (peerList.size < 4) {
+	while (peerList.size() < 4) {
 		sf::TcpSocket* temp = new sf::TcpSocket();
 		if (serverListener.accept(*temp) != sf::Socket::Done)
 		{
@@ -93,11 +93,11 @@ bool InitializeBSS(sf::TcpSocket* sock)
 		}
 		else {
 			std::cout << "Conexión establecida con : " << temp << std::endl;
-			if (peerList.size > 0)
+			if (peerList.size() > 0)
 			{
 				// Informar al socket de la información de la gente en la peerList
 				sf::Packet pack;
-				for (size_t i = 0; i < peerList.size; i++)
+				for (size_t i = 0; i < peerList.size(); i++)
 				{
 					pack << peerList[i].ip.toInteger() << peerList[i].port /* << 4 */;		
 					status = sock->send(pack);
@@ -108,7 +108,7 @@ bool InitializeBSS(sf::TcpSocket* sock)
 					pack.clear();
 				}				
 			}
-			peerList.push_back(Peer(temp->getRemoteAddress, temp->getRemotePort));
+			peerList.push_back(Peer(temp->getRemoteAddress(), temp->getRemotePort()));
 			temp->disconnect();
 		}
 	}
