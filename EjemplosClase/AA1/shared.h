@@ -4,88 +4,120 @@
 #include <iostream>
 
 using namespace std;
+using namespace sf;
 
+struct Peer
+{
+    const IpAddress ip;
+    const unsigned short port;
+
+    Peer(const IpAddress _ip, const unsigned short _port) :ip(_ip), port(_port) {}
+};
+struct PeerComplete : Peer
+{
+    TcpSocket* socket;
+    PeerComplete(const IpAddress _ip, const unsigned short _port) : Peer(_ip, _port), socket(nullptr) {}
+    PeerComplete(const IpAddress _ip, const unsigned short _port, TcpSocket* _socket) : Peer(_ip, _port), socket(_socket) {}
+    PeerComplete(TcpSocket* _socket) : Peer(_socket->getRemoteAddress(), _socket->getRemotePort()), socket(_socket) {}
+};
 enum COMUNICATION_MSGS
 {
-    MSG_NULL, C_LOGIN, S_OK, S_KO, S_ROULETTE, C_ROULETTE, S_GEMPICKED, S_MAPNAME, C_MAPNAME, S_MAPSIZE, S_MAPOBSTACLES,
-    S_ENEMY, S_PLAYERPOS, C_MOVE, S_PLAYERATTACK, S_ENEMYATTACK, S_REMOVEENEMY, S_GEMPOSITION, S_NEWUSER, S_EXITUSER, C_EXITMAP, C_SAVE, C_LOGOUT
+    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS_START, MSG_PEER, MSG_PEERS_END
+    , MSG_COUNT
 };
 
 class MessageManager
 {
 public:
-    sf::Packet lastPacket;
-    sf::Socket::Status lastStatus;
+    PeerComplete peer;
+    Packet lastPacket;
+    Socket::Status lastStatus;
     bool connected = true;
-    sf::TcpSocket *client;
-    MessageManager() {};
-    MessageManager(sf::TcpSocket *client_) : client(client_) {};
-    sf::Packet receive_message();
-    bool send_message(sf::Packet & packet_);
+    MessageManager(Peer _peer) :peer(_peer.ip, _peer.port) {}
+    MessageManager(PeerComplete _peer) :peer(_peer.ip, _peer.port, _peer.socket) {}
+    MessageManager(TcpSocket* _socket) :peer(_socket) {}
 
-    bool send_ok();
-    bool send_ko();
+#pragma region FUNCIONES GENERALES
+    Packet receive_message() {
+        Packet pack;
+        Socket::Status receiveStatus = this->peer.socket->receive(pack);
+        this->lastStatus = receiveStatus;
+        if (receiveStatus == Socket::Disconnected) {
+            cout << "Desconectado" << endl;
+            this->connected = false;
+            this->peer.socket->disconnect();
+        }
+        if (receiveStatus != Socket::Done)
+        {
+            cout << "Recepción de datos fallida" << endl;
+        }
+        else {
+            this->lastPacket = pack;
+        }
+        return pack;
+    }
+    bool send_message(Packet& packet_) {
+        Socket::Status receiveStatus = this->peer.socket->send(packet_);
+        this->lastStatus = receiveStatus;
+        if (receiveStatus == Socket::Disconnected) {
+            cout << "Desconectado" << endl;
+            return false;
+            this->connected = false;
+            this->peer.socket->disconnect();
+        }
+        if (receiveStatus != Socket::Done)
+        {
+            return false;
+            cout << "Envio de datos fallido" << endl;
+        }
+        else {
+            return true;
+        }
+        return false;
+    }
+#pragma endregion
 
-    bool receive_login(string & username_, string & password_);
-    bool receive_roulette(bool & tryRoulette_);
-    bool receive_map(int & index_);
+#pragma region ENVIOS ESPECIFICOS
+    bool send_ok() {
+        Packet pack;
+        pack << COMUNICATION_MSGS::MSG_OK;
+        return send_message(pack);
+    }
+    bool send_ko() {
+        Packet pack;
+        pack << COMUNICATION_MSGS::MSG_KO;
+        return send_message(pack);
+    }
+    bool send_peers(const vector<Peer>* _peers) {
+        Packet pack;
+        pack << COMUNICATION_MSGS::MSG_PEERS_START;
+        if (send_message(pack)) {
+            for (size_t i = 0; i < _peers->size(); i++)
+            {
+                pack.clear();
+                pack << COMUNICATION_MSGS::MSG_PEER << _peers->at(i).ip.toInteger() << _peers->at(i).port;
+                if (!send_message(pack)) {
+                    return false;
+                }
+            }
+            pack.clear();
+            pack << COMUNICATION_MSGS::MSG_PEERS_END;
+            if (!send_message(pack)) {
+                return false;
+            }
+        }
+        else {
+            return false;
+        }
+        return true;
+    }
+#pragma endregion
+#pragma region RECEPCIONES ESPECIFICAS
+    bool receive_peers(vector<Peer>* _peers) {
+
+    }
+#pragma endregion
+
 };
-
-
-bool MessageManager::send_ok(){
-    sf::Packet pack;
-    pack << COMUNICATION_MSGS::S_OK;
-    return send_message(pack);
-}
-bool MessageManager::send_ko(){
-    sf::Packet pack;
-    pack << COMUNICATION_MSGS::S_KO;
-    return send_message(pack);
-}
-
-bool MessageManager::receive_login(string & username_, string & password_){
-    sf::Packet pack = receive_message();
-    int msg = COMUNICATION_MSGS::MSG_NULL;
-    if(pack >> msg){
-        if(msg == COMUNICATION_MSGS::C_LOGIN && pack >> username_ >> password_)
-            return true;
-    }
-    return false;
-}
-bool MessageManager::receive_roulette(bool & tryRoulette_){
-    sf::Packet pack = receive_message();
-    int msg = COMUNICATION_MSGS::MSG_NULL;
-    if(pack >> msg){
-        if(msg == COMUNICATION_MSGS::C_ROULETTE && pack >> tryRoulette_)
-            return true;
-    }
-    return false;
-}
-bool MessageManager::receive_map(int & index_){
-    sf::Packet pack = receive_message();
-    int msg = COMUNICATION_MSGS::MSG_NULL;
-    if(pack >> msg){
-        if(msg == COMUNICATION_MSGS::C_MAPNAME && pack >> index_)
-            return true;
-    }
-    return false;
-}
-sf::Packet MessageManager::receive_message(){
-    sf::Packet pack;
-    sf::Socket::Status receiveStatus = this->client->receive(pack);
-    this->lastStatus = receiveStatus;
-    if(receiveStatus == sf::Socket::Disconnected){
-        cout << "Desconectado" << endl;
-        this->connected = false;
-        this->client->disconnect();
-    }
-    if (receiveStatus != sf::Socket::Done)
-    {
-        cout << "Recepción de datos fallida" << endl;
-    }else{
-        this->lastPacket = pack;
-    }
-    return pack;
-}
 
 #endif // SHARED_INCLUDED

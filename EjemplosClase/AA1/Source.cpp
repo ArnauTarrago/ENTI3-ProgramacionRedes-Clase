@@ -7,13 +7,6 @@
 #include "BSS.h"
 #include "Card.h"
 
-struct Peer
-{
-	const sf::IpAddress ip;
-	const unsigned short port;
-
-	Peer(const sf::IpAddress _ip, const unsigned short _port) :ip(_ip), port(_port) {}
-};
 
 void HandlePlayer(sf::TcpSocket* sock)
 {

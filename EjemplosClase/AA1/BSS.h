@@ -1,6 +1,7 @@
 #ifndef BSS_INCLUDED
 #define BSS_INCLUDED
 #include <SFML/Network.hpp>
+#include "shared.h"
 using namespace std;
 using namespace sf;
 struct BSS {
@@ -45,16 +46,9 @@ struct BSS {
                 if (peerList.size() > 0)
                 {
                     // Informar al socket de la información de la gente en la peerList
-                    Packet pack;
-                    for (size_t i = 0; i < peerList.size(); i++)
-                    {
-                        pack << peerList[i].ip.toInteger() << peerList[i].port;
-                        status = sock->send(pack);
-                        if (status == Socket::Status::Disconnected)
-                        {
-                            cout << "Conexión perdida con : " << temp << endl;
-                        }
-                        pack.clear();
+                    MessageManager message = MessageManager(temp);
+                    if (!message.send_peers(&peerList)) {
+                        cout << "Conexión perdida con : " << temp << endl;
                     }
                 }
                 peerList.push_back(Peer(temp->getRemoteAddress(), temp->getRemotePort()));
