@@ -13,6 +13,7 @@ struct Player {
     IpAddress ip;
     TcpListener dispatcher;
     SocketSelector selector;
+    map<int, TcpSocket*> players;
     map<TcpSocket*, MessageManager*> messages;
     map<TcpSocket*, Hand*> hands;
 	Player() : MAX_PLAYERS(MAXPLAYERS) {
@@ -82,27 +83,20 @@ struct Player {
             else {
                 cout << "Puerto vinculado, esperando clientes" << endl;
                 while (messages.size() < MAX_PLAYERS) {
-                    if (selector.wait()) {
-                        if (selector.isReady(listener))
-                        {
-                            // The listener is ready: there is a pending connection
-                            sf::TcpSocket* socket = new sf::TcpSocket;
-                            if (listener.accept(*socket) == sf::Socket::Done)
-                            {
-                                std::cout << "Llega el cliente con puerto: " << socket->getRemotePort() << std::endl;
-                                messages[socket] = new MessageManager(socket);
-                                selector.add(*socket);
-                            }
-                            else
-                            {
-                                std::cout << "Error al recoger conexión nueva\n";
-                                return false;
-                            }
-                        }
+                    sf::TcpSocket* socket = new sf::TcpSocket;
+                    if (listener.accept(*socket) == sf::Socket::Done)
+                    {
+                        std::cout << "Llega el cliente con puerto: " << socket->getRemotePort() << std::endl;
+                        messages[socket] = new MessageManager(socket);
+                        selector.add(*socket);
+                    }
+                    else
+                    {
+                        std::cout << "Error al recoger conexión nueva\n";
+                        return false;
                     }
                 }
                 listener.close();
-                selector.remove(listener);
                 return true;
             }
         }
@@ -112,6 +106,35 @@ struct Player {
     }
 
     bool Setup() {
+        for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
+        {
+            if (!it->second->send_greet(PlayerID)) {
+                cout << "Conexión perdida" << endl;
+                return false;
+            }
+            else {
+                cout << "Eres el jugador: " << PlayerID << endl;
+            }
+        }
+        players[PlayerID] = nullptr;
+        while (players.size() < MAX_PLAYERS) {
+            if (selector.wait())
+            {
+                for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
+                {
+                    int id = -1;
+                    sf::TcpSocket& client = *it->first;
+                    if (selector.isReady(client)) {
+                        if (!messages[&client]->receive_greet(&id)) {
+                            cout << "Conexión perdida" << endl;
+                            return false;
+                        }
+                        players[id] = &client;
+                        cout << "El jugador " << id << "te saluda." << endl;
+                    }
+                }
+            }
+        }
         if (PlayerID <= 0) {
             srand(time(NULL));
             seed = rand();

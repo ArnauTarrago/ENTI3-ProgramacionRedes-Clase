@@ -65,13 +65,14 @@ struct Deck {
 		}
 	}
 	void Shuffle(int seed) {
-		std::random_shuffle(deck.begin(), deck.end(), seed);
+		//std::random_shuffle(deck.begin(), deck.end(), seed);
 	}
 };
 struct Hand {
 	list<Card> hand;
 	bool Has(Card _card) {
-		return std::find(hand.begin(), hand.end(), _card) != hand.end();
+		return true;
+		//return std::find(hand.begin(), hand.end(), _card) != hand.end();
 	}
 	bool Add(Card _card) {
 		if (Has(_card))

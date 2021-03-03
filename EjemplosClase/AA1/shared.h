@@ -22,7 +22,7 @@ struct PeerComplete : Peer
 };
 enum COMUNICATION_MSGS
 {
-    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS_START, MSG_PEER, MSG_PEERS_END, MSG_SEED
+    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS, MSG_GREET, MSG_SEED
     , MSG_COUNT
 };
 
@@ -52,6 +52,7 @@ public:
             cout << "Recepción de datos fallida" << endl;
         }
         else {
+            cout << "Mensaje recibido: " << endl << pack << endl;
             this->lastPacket = pack;
         }
         return pack;
@@ -71,6 +72,7 @@ public:
             cout << "Envio de datos fallido" << endl;
         }
         else {
+            cout << "Mensaje enviado: " << endl << packet_ << endl;
             return true;
         }
         return false;
@@ -90,26 +92,20 @@ public:
     }
     bool send_peers(const vector<Peer>* _peers) {
         Packet pack;
-        pack << COMUNICATION_MSGS::MSG_PEERS_START;
-        if (send_message(pack)) {
-            for (size_t i = 0; i < _peers->size(); i++)
-            {
-                pack.clear();
-                pack << COMUNICATION_MSGS::MSG_PEER << _peers->at(i).ip.toInteger() << _peers->at(i).port;
-                if (!send_message(pack)) {
-                    return false;
-                }
-            }
-            pack.clear();
-            pack << COMUNICATION_MSGS::MSG_PEERS_END;
-            if (!send_message(pack)) {
-                return false;
-            }
+        pack << COMUNICATION_MSGS::MSG_PEERS << _peers->size();
+        for (size_t i = 0; i < _peers->size(); i++)
+        {
+            pack << _peers->at(i).ip.toInteger() << _peers->at(i).port;
         }
-        else {
+        if (!send_message(pack)) {
             return false;
         }
         return true;
+    }
+    bool send_greet(int _Id) {
+        Packet pack;
+        pack << COMUNICATION_MSGS::MSG_GREET << _Id;
+        return send_message(pack);
     }
     bool send_seed(int _seed) {
         Packet pack;
@@ -121,38 +117,44 @@ public:
     bool receive_peers(vector<Peer>* _peers) {
         Packet pack = receive_message();
         int msg = COMUNICATION_MSGS::MSG_NULL;
-        if (pack >> msg && msg == COMUNICATION_MSGS::MSG_PEERS_START) {
-            while (true) {
-                pack.clear();
-                pack = receive_message();
-                if (pack >> msg) {
-                    if (msg == COMUNICATION_MSGS::MSG_PEER) {
-                        int intIPAddress;
-                        IpAddress ipAddress;
-                        unsigned short port;
+        if (pack >> msg && msg == COMUNICATION_MSGS::MSG_PEERS) {
+            int size = -1;
+            if (pack >> size) {
+                _peers->reserve(size);
+                for (size_t i = 0; i < size; i++)
+                {
+                    int intIPAddress;
+                    IpAddress ipAddress;
+                    unsigned short port;
 
-                        if (pack >> intIPAddress >> port) {
-                            ipAddress = IpAddress(intIPAddress);
-                            _peers->push_back(Peer(ipAddress, port));
-                        }
-                        else {
-                            return false;
-                        }
-                    }
-                    else if (msg == COMUNICATION_MSGS::MSG_PEERS_END) {
-                        return true;
+                    if (pack >> intIPAddress >> port) {
+                        ipAddress = IpAddress(intIPAddress);
+                        _peers->push_back(Peer(ipAddress, port));
                     }
                     else {
                         return false;
                     }
                 }
-                else {
-                    return false;
-                }
+                return true;
+            }
+            else {
+                return false;
             }
         }
         else {
             return false;
+        }
+        return false;
+    }
+    bool receive_greet(int * Id_) {
+        Packet pack = receive_message();
+        int msg = COMUNICATION_MSGS::MSG_NULL;
+        if (pack >> msg && msg == COMUNICATION_MSGS::MSG_GREET) {
+            int id = 0;
+            if (pack >> id) {
+                *Id_ = id;
+                return true;
+            }
         }
         return false;
     }

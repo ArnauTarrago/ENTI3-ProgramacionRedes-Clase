@@ -41,6 +41,8 @@ struct BSS {
             }
             else {
                 cout << "Conexión establecida con : " << temp << endl;
+                cout << "   Ip : " << temp->getRemoteAddress() << endl;
+                cout << "   Puerto : " << temp->getRemotePort() << endl;
                 // Informar al socket de la información de la gente en la peerList
                 MessageManager message = MessageManager(temp);
                 if (!message.send_peers(&peerList)) {
