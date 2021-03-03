@@ -52,7 +52,7 @@ public:
             cout << "Recepción de datos fallida" << endl;
         }
         else {
-            cout << "Mensaje recibido: " << endl << pack << endl;
+            //cout << "Mensaje recibido: " << endl << pack << endl;
             this->lastPacket = pack;
         }
         return pack;
@@ -72,7 +72,7 @@ public:
             cout << "Envio de datos fallido" << endl;
         }
         else {
-            cout << "Mensaje enviado: " << endl << packet_ << endl;
+            //cout << "Mensaje enviado: " << endl << packet_ << endl;
             return true;
         }
         return false;
@@ -92,7 +92,8 @@ public:
     }
     bool send_peers(const vector<Peer>* _peers) {
         Packet pack;
-        pack << COMUNICATION_MSGS::MSG_PEERS << _peers->size();
+        pack << COMUNICATION_MSGS::MSG_PEERS;
+        pack << static_cast<sf::Uint32>(_peers->size());
         for (size_t i = 0; i < _peers->size(); i++)
         {
             pack << _peers->at(i).ip.toInteger() << _peers->at(i).port;
@@ -118,12 +119,12 @@ public:
         Packet pack = receive_message();
         int msg = COMUNICATION_MSGS::MSG_NULL;
         if (pack >> msg && msg == COMUNICATION_MSGS::MSG_PEERS) {
-            int size = -1;
-            if (pack >> size) {
+            sf::Uint32 size = -1;
+            if (pack >> size ) {
                 _peers->reserve(size);
                 for (size_t i = 0; i < size; i++)
                 {
-                    int intIPAddress;
+                    sf::Uint32 intIPAddress;
                     IpAddress ipAddress;
                     unsigned short port;
 

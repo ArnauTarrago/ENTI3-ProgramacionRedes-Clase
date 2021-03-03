@@ -11,13 +11,13 @@ struct BSS {
 	TcpListener dispatcher;
 	BSS() : MAX_PLAYERS(MAXPLAYERS) {
         while (true) {
-            cout << "Introduce un puerto" << endl;
+            cout << "Enter server port" << endl;
             cin >> port;
             status = dispatcher.listen(port);
             if (status != Socket::Done) {
-                cout << "Puerto no vinculado" << endl;
+                cout << "Port not available" << endl;
                 dispatcher.close();
-                cout << "¿Desea reintentar? (y/n)" << endl;
+                cout << "Retry? (y/n)" << endl;
                 char retry;
                 cin >> retry;
                 if (retry == 'Y' || retry == 'y')
@@ -26,7 +26,7 @@ struct BSS {
                     return;
             }
             else {
-                cout << "Puerto vinculado, esperando clientes" << endl;
+                cout << "Port connected, waiting for " << MAX_PLAYERS << " clients..." << endl << endl;
 
                 break;
             }
@@ -37,23 +37,27 @@ struct BSS {
             TcpSocket* temp = new TcpSocket();
             if (dispatcher.accept(*temp) != Socket::Done)
             {
-                cout << "Conexión no aceptada" << endl;
+                cout << "Connection not accepted" << endl;
             }
             else {
-                cout << "Conexión establecida con : " << temp << endl;
+                cout << "Connection: " << &temp << " (" << peerList.size()+1 << "/" << MAX_PLAYERS << ")" <<  endl;
                 cout << "   Ip : " << temp->getRemoteAddress() << endl;
-                cout << "   Puerto : " << temp->getRemotePort() << endl;
+                cout << "   Port : " << temp->getRemotePort() << endl;
                 // Informar al socket de la información de la gente en la peerList
                 MessageManager message = MessageManager(temp);
                 if (!message.send_peers(&peerList)) {
-                    cout << "Conexión perdida con : " << temp << endl;
+                    cout << "Connection lost: " << &temp << endl;
+                    cout << "   Ip : " << temp->getRemoteAddress() << endl;
+                    cout << "   Port : " << temp->getRemotePort() << endl;
                 }
-                peerList.push_back(Peer(temp->getRemoteAddress(), temp->getRemotePort()));
+                else {
+                    peerList.push_back(Peer(temp->getRemoteAddress(), temp->getRemotePort()));
+                }
                 temp->disconnect();
             }
         }
         dispatcher.close();
-        cout << "Todos los jugadores conectados. Cerrando." << endl;
+        cout << "All players connected. Closing." << endl;
 	}
 };
 

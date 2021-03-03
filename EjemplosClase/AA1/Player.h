@@ -20,15 +20,15 @@ struct Player {
         TcpSocket * socket = new TcpSocket();
         Socket::Status status;
         while (true) {
-            cout << "Introduce un puerto" << endl;
-            cin >> port;
-            cout << "Introduce una ip" << endl;
+            cout << "Enter server ip" << endl;
             cin >> ip;
+            cout << "Enter server port" << endl;
+            cin >> port;
             status = socket->connect(ip, port/*, sf::seconds(15.f)*/);
             if (status != sf::Socket::Done) {
-                cout << "Conexión no aceptada" << endl;
+                cout << "Connection not available" << endl;
                 socket->disconnect();
-                cout << "¿Desea reintentar? (y/n)" << endl;
+                cout << "Retry? (y/n)" << endl;
                 char retry;
                 cin >> retry;
                 if (retry == 'Y' || retry == 'y')
@@ -37,7 +37,7 @@ struct Player {
                     return;
             }
             else {
-                cout << "Conexión establecida" << endl;
+                cout << "Connection established with server" << endl;
                 if (!Load(socket))
                     return;
                 if (!Setup())
@@ -64,11 +64,15 @@ struct Player {
                 TcpSocket* socket = new TcpSocket();
                 status = socket->connect(peerList.at(i).ip, peerList.at(i).port);
                 if (status != sf::Socket::Done) {
-                    cout << "Conexión no aceptada" << endl;
+                    cout << "Client lost: " << &socket << std::endl;
+                    cout << "   Ip : " << socket->getRemoteAddress() << endl;
+                    cout << "   Port : " << socket->getRemotePort() << endl;
                     return false;
                 }
                 else {
-                    cout << "Conexión establecida" << endl;
+                    cout << "Client arrived: " << &socket << std::endl;
+                    cout << "   Ip : " << socket->getRemoteAddress() << endl;
+                    cout << "   Port : " << socket->getRemotePort() << endl;
                     messages[socket] = new MessageManager(socket);
                     selector.add(*socket);
                 }
@@ -77,22 +81,26 @@ struct Player {
         if (messages.size() < MAX_PLAYERS) {
             status = listener.listen(localport);
             if (status != Socket::Done) {
-                cout << "Puerto no vinculado" << endl;
+                cout << "Could not open ports to listen for clients" << endl;
                 return false;
             }
             else {
-                cout << "Puerto vinculado, esperando clientes" << endl;
-                while (messages.size() < MAX_PLAYERS) {
+                cout << "Port opened, listening for clients" << endl;
+                while (messages.size() < MAX_PLAYERS - 1) {
                     sf::TcpSocket* socket = new sf::TcpSocket;
                     if (listener.accept(*socket) == sf::Socket::Done)
                     {
-                        std::cout << "Llega el cliente con puerto: " << socket->getRemotePort() << std::endl;
+                        cout << "Client arrived: " << &socket << std::endl;
+                        cout << "   Ip : " << socket->getRemoteAddress() << endl;
+                        cout << "   Port : " << socket->getRemotePort() << endl;
                         messages[socket] = new MessageManager(socket);
                         selector.add(*socket);
                     }
                     else
                     {
-                        std::cout << "Error al recoger conexión nueva\n";
+                        cout << "Client lost: " << &socket << std::endl;
+                        cout << "   Ip : " << socket->getRemoteAddress() << endl;
+                        cout << "   Port : " << socket->getRemotePort() << endl;
                         return false;
                     }
                 }
@@ -109,13 +117,13 @@ struct Player {
         for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
         {
             if (!it->second->send_greet(PlayerID)) {
-                cout << "Conexión perdida" << endl;
+                cout << "Client lost: " << &it->first << std::endl;
+                cout << "   Ip : " << it->first->getRemoteAddress() << endl;
+                cout << "   Port : " << it->first->getRemotePort() << endl;
                 return false;
             }
-            else {
-                cout << "Eres el jugador: " << PlayerID << endl;
-            }
         }
+        cout << "You are the player: " << PlayerID << endl;
         players[PlayerID] = nullptr;
         while (players.size() < MAX_PLAYERS) {
             if (selector.wait())
@@ -126,11 +134,13 @@ struct Player {
                     sf::TcpSocket& client = *it->first;
                     if (selector.isReady(client)) {
                         if (!messages[&client]->receive_greet(&id)) {
-                            cout << "Conexión perdida" << endl;
+                            cout << "Client lost: " << &it->first << std::endl;
+                            cout << "   Ip : " << it->first->getRemoteAddress() << endl;
+                            cout << "   Port : " << it->first->getRemotePort() << endl;
                             return false;
                         }
                         players[id] = &client;
-                        cout << "El jugador " << id << "te saluda." << endl;
+                        cout << "Player " << id << " waves at you" << endl;
                     }
                 }
             }
@@ -142,7 +152,9 @@ struct Player {
             for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
             {
                 if (!it->second->send_seed(seed)) {
-                    cout << "Conexión perdida" << endl;
+                    cout << "Client lost: " << &it->first << std::endl;
+                    cout << "   Ip : " << it->first->getRemoteAddress() << endl;
+                    cout << "   Port : " << it->first->getRemotePort() << endl;
                     return false;
                 }
             }
@@ -158,7 +170,9 @@ struct Player {
                         sf::TcpSocket& client = *it->first;
                         if (selector.isReady(client)) {
                             if (!messages[&client]->receive_seed(&seed)) {
-                                cout << "Conexión perdida" << endl;
+                                cout << "Client lost: " << &it->first << std::endl;
+                                cout << "   Ip : " << it->first->getRemoteAddress() << endl;
+                                cout << "   Port : " << it->first->getRemotePort() << endl;
                                 return false;
                             }
                         }
@@ -166,8 +180,10 @@ struct Player {
                 }
             }
         }
+        cout << "Seed: " << seed << endl;
         Deck deck = Deck();
         deck.Shuffle(seed);
+        deck.Print();
 
         return true;
     }
