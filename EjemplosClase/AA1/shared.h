@@ -22,7 +22,7 @@ struct PeerComplete : Peer
 };
 enum COMUNICATION_MSGS
 {
-    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS_START, MSG_PEER, MSG_PEERS_END
+    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS_START, MSG_PEER, MSG_PEERS_END, MSG_SEED
     , MSG_COUNT
 };
 
@@ -111,6 +111,11 @@ public:
         }
         return true;
     }
+    bool send_seed(int _seed) {
+        Packet pack;
+        pack << COMUNICATION_MSGS::MSG_SEED << _seed;
+        return send_message(pack);
+    }
 #pragma endregion
 #pragma region RECEPCIONES ESPECIFICAS
     bool receive_peers(vector<Peer>* _peers) {
@@ -148,6 +153,18 @@ public:
         }
         else {
             return false;
+        }
+        return false;
+    }
+    bool receive_seed(int * seed_) {
+        Packet pack = receive_message();
+        int msg = COMUNICATION_MSGS::MSG_NULL;
+        if (pack >> msg && msg == COMUNICATION_MSGS::MSG_SEED) {
+            int seed = 0;
+            if (pack >> seed) {
+                *seed_ = seed;
+                return true;
+            }
         }
         return false;
     }

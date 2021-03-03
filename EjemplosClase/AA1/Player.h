@@ -14,6 +14,7 @@ struct Player {
     TcpListener dispatcher;
     SocketSelector selector;
     map<TcpSocket*, MessageManager*> messages;
+    map<TcpSocket*, Hand*> hands;
 	Player() : MAX_PLAYERS(MAXPLAYERS) {
         TcpSocket * socket = new TcpSocket();
         Socket::Status status;
@@ -36,7 +37,10 @@ struct Player {
             }
             else {
                 cout << "Conexión establecida" << endl;
-                Load(socket);
+                if (!Load(socket))
+                    return;
+                if (!Setup())
+                    return;
                 break;
             }
         }
@@ -78,20 +82,22 @@ struct Player {
             else {
                 cout << "Puerto vinculado, esperando clientes" << endl;
                 while (messages.size() < MAX_PLAYERS) {
-                    if (selector.isReady(listener))
-                    {
-                        // The listener is ready: there is a pending connection
-                        sf::TcpSocket* socket = new sf::TcpSocket;
-                        if (listener.accept(*socket) == sf::Socket::Done)
+                    if (selector.wait()) {
+                        if (selector.isReady(listener))
                         {
-                            std::cout << "Llega el cliente con puerto: " << socket->getRemotePort() << std::endl;
-                            messages[socket] = new MessageManager(socket);
-                            selector.add(*socket);
-                        }
-                        else
-                        {
-                            std::cout << "Error al recoger conexión nueva\n";
-                            return false;
+                            // The listener is ready: there is a pending connection
+                            sf::TcpSocket* socket = new sf::TcpSocket;
+                            if (listener.accept(*socket) == sf::Socket::Done)
+                            {
+                                std::cout << "Llega el cliente con puerto: " << socket->getRemotePort() << std::endl;
+                                messages[socket] = new MessageManager(socket);
+                                selector.add(*socket);
+                            }
+                            else
+                            {
+                                std::cout << "Error al recoger conexión nueva\n";
+                                return false;
+                            }
                         }
                     }
                 }
@@ -105,15 +111,42 @@ struct Player {
         }
     }
 
-    void Setup() {
+    bool Setup() {
         if (PlayerID <= 0) {
             srand(time(NULL));
             seed = rand();
             srand(seed);
+            for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
+            {
+                if (!it->second->send_seed(seed)) {
+                    cout << "Conexión perdida" << endl;
+                    return false;
+                }
+            }
         }
         else {
+            seed = -1;
+            while (seed < 0) {
 
+                if (selector.wait())
+                {
+                    for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
+                    {
+                        sf::TcpSocket& client = *it->first;
+                        if (selector.isReady(client)) {
+                            if (!messages[&client]->receive_seed(&seed)) {
+                                cout << "Conexión perdida" << endl;
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
         }
+        Deck deck = Deck();
+        deck.Shuffle(seed);
+
+        return true;
     }
 
 	void Play() {
