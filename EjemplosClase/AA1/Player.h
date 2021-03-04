@@ -1,7 +1,6 @@
 #ifndef PLAYER_INCLUDED
 #define PLAYER_INCLUDED
 #include "Card.h"
-#include <map>
 
 using namespace std;
 using namespace sf;
@@ -13,9 +12,10 @@ struct Player {
     IpAddress ip;
     TcpListener dispatcher;
     SocketSelector selector;
+    Deck deck;
     map<int, TcpSocket*> players;
     map<TcpSocket*, MessageManager*> messages;
-    map<TcpSocket*, Hand*> hands;
+    map<int, Hand*> hands;
 	Player() : MAX_PLAYERS(MAXPLAYERS) {
         TcpSocket * socket = new TcpSocket();
         Socket::Status status;
@@ -160,30 +160,27 @@ struct Player {
             }
         }
         else {
-            seed = -1;
-            while (seed < 0) {
-
-                if (selector.wait())
-                {
-                    for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
-                    {
-                        sf::TcpSocket& client = *it->first;
-                        if (selector.isReady(client)) {
-                            if (!messages[&client]->receive_seed(&seed)) {
-                                cout << "Client lost: " << &it->first << std::endl;
-                                cout << "   Ip : " << it->first->getRemoteAddress() << endl;
-                                cout << "   Port : " << it->first->getRemotePort() << endl;
-                                return false;
-                            }
-                        }
-                    }
-                }
-            }
+            messages[players[0]]->receive_seed(&seed);
         }
         cout << "Seed: " << seed << endl;
-        Deck deck = Deck();
+
+        deck = Deck();
         deck.Shuffle(seed);
-        deck.Print();
+
+        for (size_t i = 0; i < MAX_PLAYERS; i++)
+        {
+            hands[i] = &Hand();
+        }
+        for (size_t i = 0; i < deck.deck.size(); i++)
+        {
+            hands[i % MAX_PLAYERS]->hand.push_back(Card(*deck.deck[i]));
+        }
+        for (size_t i = 0; i < MAX_PLAYERS; i++)
+        {
+            hands[i]->hand.sort();
+        }
+        hands[PlayerID]->calcPoints();
+        hands[PlayerID]->Print();
 
         return true;
     }

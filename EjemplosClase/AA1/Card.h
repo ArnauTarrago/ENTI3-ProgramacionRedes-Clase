@@ -4,6 +4,7 @@
 #include <list>
 #include <algorithm>
 #include <random>
+#include <map>
 using namespace std;
 struct Card {
 	static enum CATEGORY
@@ -11,7 +12,7 @@ struct Card {
 		ARABE, BANTU, CHINA, ESQUIMAL, INDIA, MEXICANA, TIROLESA
 		, CATEGORY_COUNT
 	};
-	inline const char* ToString(CATEGORY v)
+	inline static const char* ToString(CATEGORY v)
 	{
 		switch (v)
 		{
@@ -30,7 +31,7 @@ struct Card {
 		ABUELO, ABUELA, PADRE, MADRE, HIJO, HIJA
 		, NUMBER_COUNT
 	};
-	inline const char* ToString(NUMBER v)
+	inline static const char* ToString(NUMBER v)
 	{
 		switch (v)
 		{
@@ -97,7 +98,7 @@ struct Deck {
 		}
 	}
 	void Shuffle(int _seed) {
-		shuffle(deck.begin(), deck.end(), std::default_random_engine(_seed));
+		shuffle(deck.begin(), deck.end(), default_random_engine(_seed));
 	}
 	void Print() {
 		cout << "Generated deck:" << endl;
@@ -107,23 +108,59 @@ struct Deck {
 		}
 		cout << endl;
 	}
+	inline const int size() {
+		return deck.size();
+	}
 };
 struct Hand {
+	int points = 0;
+	map<Card::CATEGORY, int> categories;
 	list<Card> hand;
-	bool Has(Card _card) {
+	Hand() {
+		resetCategories();
+	}
+	bool find(Card _card) {
 		return std::find(hand.begin(), hand.end(), _card) != hand.end();
 	}
-	bool Add(Card _card) {
-		if (Has(_card))
+	bool push_back(Card _card) {
+		if (find(_card))
 			return false;
 		hand.push_back(_card);
 		return true;
 	}
 	bool remove(Card _card) {
-		if (!Has(_card))
+		if (!find(_card))
 			return false;
 		hand.remove(_card);
 		return true;
+	}
+	void Print() {
+		cout << "Current Points:" << endl;
+		for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
+		{
+			cout << Card::ToString(static_cast<Card::CATEGORY>(i)) << ": " << categories[static_cast<Card::CATEGORY>(i)] << ", ";
+		}
+		cout << endl << "Points: " << points << endl;
+		cout << "Current Hand:" << endl;
+		for (list<Card>::iterator it = hand.begin(); it != hand.end(); ++it) {
+			cout << it->ToString() << endl;
+		}
+	}
+	void resetCategories() {
+		for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
+		{
+			categories[static_cast<Card::CATEGORY>(i)] = 0;
+		}
+	}
+	void calcPoints() {
+		resetCategories();
+		for (list<Card>::iterator it = hand.begin(); it != hand.end(); ++it) {
+			categories[it->CAT]++;
+		}
+		for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
+		{
+			points += categories[static_cast<Card::CATEGORY>(i)];
+		}
 	}
 };
 #endif // CARD_INCLUDED
