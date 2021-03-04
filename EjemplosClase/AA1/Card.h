@@ -48,11 +48,11 @@ struct Card {
 	const NUMBER NUM;
 	const int val;
 	Card() : CAT(CATEGORY_COUNT), NUM(NUMBER_COUNT), val(CAT* CATEGORY_COUNT + NUM) {}
-	Card(const Card &_card) : CAT(_card.CAT), NUM(_card.NUM), val(_card.NUM) {}
+	Card(const Card &_card) : CAT(_card.CAT), NUM(_card.NUM), val(_card.val) {}
 	Card(CATEGORY _cat, NUMBER _num) : CAT(_cat), NUM(_num), val(CAT* CATEGORY_COUNT + NUM) {}
 	Card(int _cat, int _num) : CAT(static_cast<CATEGORY>(_cat)), NUM(static_cast<NUMBER>(_num)), val(CAT* CATEGORY_COUNT + NUM) {}
-	inline const string ToString() {
-		return " - (" + to_string(val) + ")	:" + ToString(CAT) + "(" + to_string(CAT) + "), " + ToString(NUM) + "(" + to_string(NUM) + ")";
+	inline static const string ToString(Card c) {
+		return " - (" + to_string(c.val) + ")	:" + ToString(c.CAT) + "(" + to_string(c.CAT) + "), " + ToString(c.NUM) + "(" + to_string(c.NUM) + ")";
 	}
 
 	bool operator()(Card* a, Card* b) {
@@ -104,7 +104,7 @@ struct Deck {
 		cout << "Generated deck:" << endl;
 		for (size_t i = 0; i < deck.size(); i++)
 		{
-			cout << deck.at(i)->ToString() << endl;
+			cout << Card::ToString(*deck.at(i)) << endl;
 		}
 		cout << endl;
 	}
@@ -113,26 +113,24 @@ struct Deck {
 	}
 };
 struct Hand {
-	int points = 0;
-	map<Card::CATEGORY, int> categories;
-	list<Card> hand;
+	map<int, int> categories;
+	map<Card, bool> hand;
 	Hand() {
-		resetCategories();
+		for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
+		{
+			categories[i] = 0;
+		}
 	}
-	bool find(Card _card) {
-		return std::find(hand.begin(), hand.end(), _card) != hand.end();
+	bool has(Card _card) {
+		return hand[_card];
 	}
-	bool push_back(Card _card) {
-		if (find(_card))
-			return false;
-		hand.push_back(_card);
-		return true;
+	void add(Card _card) {
+		categories[_card.CAT]++;
+		hand[_card] = true;
 	}
-	bool remove(Card _card) {
-		if (!find(_card))
-			return false;
-		hand.remove(_card);
-		return true;
+	void remove(Card _card) {
+		categories[_card.CAT]--;
+		hand[_card] = false;
 	}
 	void Print() {
 		cout << "Current Points:" << endl;
@@ -140,27 +138,21 @@ struct Hand {
 		{
 			cout << Card::ToString(static_cast<Card::CATEGORY>(i)) << ": " << categories[static_cast<Card::CATEGORY>(i)] << ", ";
 		}
-		cout << endl << "Points: " << points << endl;
+		cout << endl << "Points: " << points() << endl;
 		cout << "Current Hand:" << endl;
-		for (list<Card>::iterator it = hand.begin(); it != hand.end(); ++it) {
-			cout << it->ToString() << endl;
+		for (map<Card, bool>::iterator it = hand.begin(); it != hand.end(); ++it) {
+			if (it->second)
+				cout << Card::ToString(it->first) << endl;
 		}
 	}
-	void resetCategories() {
+	int points(){
+		int point = 0;
 		for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
 		{
-			categories[static_cast<Card::CATEGORY>(i)] = 0;
+			if (categories[static_cast<Card::CATEGORY>(i)] >= Card::NUMBER_COUNT)
+				point++;
 		}
-	}
-	void calcPoints() {
-		resetCategories();
-		for (list<Card>::iterator it = hand.begin(); it != hand.end(); ++it) {
-			categories[it->CAT]++;
-		}
-		for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
-		{
-			points += categories[static_cast<Card::CATEGORY>(i)];
-		}
+		return point;
 	}
 };
 #endif // CARD_INCLUDED

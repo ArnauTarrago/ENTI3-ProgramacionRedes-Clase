@@ -169,17 +169,12 @@ struct Player {
 
         for (size_t i = 0; i < MAX_PLAYERS; i++)
         {
-            hands[i] = &Hand();
+            hands[i] = new Hand();
         }
         for (size_t i = 0; i < deck.deck.size(); i++)
         {
-            hands[i % MAX_PLAYERS]->hand.push_back(Card(*deck.deck[i]));
+            hands[i % MAX_PLAYERS]->add(*deck.deck[i]);
         }
-        for (size_t i = 0; i < MAX_PLAYERS; i++)
-        {
-            hands[i]->hand.sort();
-        }
-        hands[PlayerID]->calcPoints();
         hands[PlayerID]->Print();
 
         return true;
