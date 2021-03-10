@@ -54,6 +54,7 @@ struct Player {
         if (!message.receive_peers(&peerList))
             return false;
         int localport = _socket->getLocalPort();
+		seed = localport;
         _socket->disconnect();
         TcpListener listener;
         Socket::Status status;
@@ -145,24 +146,8 @@ struct Player {
                 }
             }
         }
-        if (PlayerID <= 0) {
-            srand(time(NULL));
-            seed = rand();
-			// PARA EVITAR ENVIAR LA SEED A OTROS, SE PUEDE USAR EL PUERTO LOCAL DE PLAYER 0 COMO SEED. SE TENDRIA QUE QUITAR EL ENVIO Y RECIBO DE SEEDS SI SE USA ESTE METODO
-			//seed = players[0]->getLocalPort();
-            srand(seed);
-            for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
-            {
-                if (!it->second->send_seed(seed)) {
-                    cout << "Client lost: " << &it->first << std::endl;
-                    cout << "   Ip : " << it->first->getRemoteAddress() << endl;
-                    cout << "   Port : " << it->first->getRemotePort() << endl;
-                    return false;
-                }
-            }
-        }
-        else {
-            messages[players[0]]->receive_seed(&seed);
+        if (PlayerID > 0) {
+			seed = players[0]->getRemotePort();
         }
         cout << "Seed: " << seed << endl;
 
