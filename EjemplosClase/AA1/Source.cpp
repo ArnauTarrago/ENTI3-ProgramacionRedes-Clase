@@ -41,6 +41,7 @@
 #include "shared.h"
 #include "BSS.h"
 #include "Player.h"
+#include "Interface.h"
 
 /*
 c
@@ -52,6 +53,12 @@ localhost
 int main()
 {
 	char userType;
+
+	Interface interface;
+	interface.SetGameState("Waiting for players");
+	interface.SetCurrentPlayerTurn("Test 1");
+	interface.PrintScreen();
+
 
 	std::cout << "Are you a client 'c' or server 's'?: ";
 	std::cin >> userType;
