@@ -22,8 +22,19 @@ struct PeerComplete : Peer
 };
 enum COMUNICATION_MSGS
 {
-    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS, MSG_GREET
+    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS, MSG_GREET, MSG_CHAT, MSG_VALIDATION, MSG_GAMESETUP, MSG_GAMEJOIN, MSG_GAMELIST, MSG_TURNDONE, MSG_REQUESTCARD
+    , MSG_GAMEOVER
     , MSG_COUNT
+};
+enum CHAT_MSGS {
+    CHAT_HELLO, CHAT_GG, CHAT_HELP
+    , CHAT_COUNT
+};
+
+const static string CHAT_MSGS_STRINGS[] = {
+    "Hello!",
+    "Good Game!",
+    "Help!"
 };
 
 class MessageManager
