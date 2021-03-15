@@ -22,10 +22,16 @@ struct PeerComplete : Peer
 };
 enum COMUNICATION_MSGS
 {
-    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS, MSG_GREET, MSG_CHAT, MSG_VALIDATION, MSG_GAMESETUP, MSG_GAMEJOIN, MSG_GAMELIST, MSG_TURNDONE, MSG_REQUESTCARD
+    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS, MSG_GREET, MSG_CHAT, MSG_VALIDATION, MSG_GAMEQUERY, MSG_GAMELIST, MSG_TURNDONE, MSG_REQUESTCARD
     , MSG_GAMEOVER
     , MSG_COUNT
 };
+enum GAME_QUERY {
+    GAME_SETUP, GAME_JOIN
+    , GAME_COUNT
+};
+
+
 enum CHAT_MSGS {
     CHAT_HELLO, CHAT_GG, CHAT_HELP
     , CHAT_COUNT
@@ -170,6 +176,26 @@ public:
         }
         return false;
     }
+
+    bool receive_gameQuery(bool * create, string * name, string * password, int * maxPlayers) {
+        Packet pack = receive_message();
+        int msg = COMUNICATION_MSGS::MSG_NULL;
+        if (pack >> msg && msg == COMUNICATION_MSGS::MSG_GAMEQUERY) {
+            if (pack >> msg >> *name >> *password) {
+                if (msg == GAME_QUERY::GAME_JOIN) {
+                    *create = false;
+                    return true;
+                }
+                else if (msg == GAME_QUERY::GAME_SETUP) {
+                    *create = true;
+                    if (pack >> *maxPlayers)
+                        return true;
+                }
+            }
+        }
+        return false;
+    }
+
     //bool receive_seed(int * seed_) {
     //    packet pack = receive_message();
     //    int msg = comunication_msgs::msg_null;

@@ -1,5 +1,4 @@
 #include "Interface.h"
-#include "ConsoleControl.h"
 #include <iostream>
 
 void Interface::PrintScreen()
