@@ -3,6 +3,7 @@
 #include <mutex>
 #include <chrono>
 #include <string>
+#include <list>
 
 #define MAXPLAYERS 3
 

@@ -107,13 +107,12 @@ public:
         pack << COMUNICATION_MSGS::MSG_KO;
         return send_message(pack);
     }
-    bool send_peers(const vector<Peer>* _peers) {
+    bool send_peers(const list<MessageManager*>* _peers) {
         Packet pack;
         pack << COMUNICATION_MSGS::MSG_PEERS;
         pack << static_cast<sf::Uint32>(_peers->size());
-        for (size_t i = 0; i < _peers->size(); i++)
-        {
-            pack << _peers->at(i).ip.toInteger() << _peers->at(i).port;
+        for (list<MessageManager*>::const_iterator it = _peers->begin(); it != _peers->end(); it++) {
+            pack << (*it)->peer.ip.toInteger() << (*it)->peer.port;
         }
         if (!send_message(pack)) {
             return false;
