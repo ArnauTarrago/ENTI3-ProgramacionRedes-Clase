@@ -4,6 +4,14 @@
 
 using namespace std;
 using namespace sf;
+struct GameSessionClient {
+    const string NAME;
+    const bool HASPASSWORD;
+    const int CURRENT_PLAYERS;
+    const int MAX_PLAYERS;
+
+    GameSessionClient(string _NAME, int _CURRENT_PLAYERS, int _MAX_PLAYERS, bool _HASPASSWORD) : NAME(_NAME), CURRENT_PLAYERS(_CURRENT_PLAYERS), MAX_PLAYERS(_MAX_PLAYERS), HASPASSWORD(_HASPASSWORD) {};
+};
 struct Player {
     const int MAX_PLAYERS;
     int port;
@@ -38,6 +46,8 @@ struct Player {
             }
             else {
                 cout << "Connection established with server" << endl;
+                if (!Browse(socket))
+                    return;
                 if (!Load(socket))
                     return;
                 if (!Setup())
@@ -47,10 +57,36 @@ struct Player {
         }
 	}
 
-    bool Load(TcpSocket* _socket) {
-        vector<Peer> peerList = vector<Peer>();
-
+    bool Browse(TcpSocket* _socket) {
         MessageManager message = MessageManager(_socket);
+        vector<GameSessionClient> games;
+        if (!ReceiveGames(&message, &games)) {
+            return false;
+        }
+        cout << games.size() << endl;
+        bool waiting = true;
+        while (waiting) {
+
+        }
+        return true;
+    }
+
+    bool ReceiveGames(MessageManager* messages, vector<GameSessionClient>* games) {
+        vector<GameSessionSend> _games;
+        if (!messages->receive_gamelist(&_games)) {
+            return false;
+        }
+        games->reserve(_games.size());
+        for (size_t i = 0; i < _games.size(); i++)
+        {
+            games->push_back(GameSessionClient(get<0>(_games.at(i)), get<1>(_games.at(i)), get<2>(_games.at(i)), get<3>(_games.at(i))));
+        }
+        return true;
+    }
+
+    bool Load(TcpSocket* _socket) {
+        MessageManager message = MessageManager(_socket);
+        vector<Peer> peerList = vector<Peer>();
         if (!message.receive_peers(&peerList))
             return false;
         int localport = _socket->getLocalPort();

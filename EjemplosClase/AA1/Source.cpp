@@ -4,6 +4,7 @@
 #include <chrono>
 #include <string>
 #include <list>
+#include <tuple>
 
 #define MAXPLAYERS 3
 

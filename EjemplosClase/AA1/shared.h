@@ -6,6 +6,8 @@
 using namespace std;
 using namespace sf;
 
+#define GameSessionSend std::tuple<string, int, int, bool>
+
 struct Peer
 {
     const IpAddress ip;
@@ -119,6 +121,19 @@ public:
         }
         return true;
     }
+    bool send_gamelist(const vector<GameSessionSend>* _games) {
+        Packet pack;
+        pack << COMUNICATION_MSGS::MSG_GAMELIST;
+        pack << static_cast<sf::Uint32>(_games->size());
+        for (size_t i = 0; i < _games->size(); i++)
+        {
+            pack << get<0>(_games->at(i)) << get<1>(_games->at(i)) << get<2>(_games->at(i)) << get<3>(_games->at(i));
+        }
+        if (!send_message(pack)) {
+            return false;
+        }
+        return true;
+    }
     bool send_greet(int _Id) {
         Packet pack;
         pack << COMUNICATION_MSGS::MSG_GREET << _Id;
@@ -147,6 +162,39 @@ public:
                     if (pack >> intIPAddress >> port) {
                         ipAddress = IpAddress(intIPAddress);
                         _peers->push_back(Peer(ipAddress, port));
+                    }
+                    else {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+        else {
+            return false;
+        }
+        return false;
+    }
+    bool receive_gamelist(vector<GameSessionSend>* _games) {
+        Packet pack = receive_message();
+        int msg = COMUNICATION_MSGS::MSG_NULL;
+        if (pack >> msg && msg == COMUNICATION_MSGS::MSG_GAMELIST) {
+            sf::Uint32 size = -1;
+            if (pack >> size ) {
+                _games->reserve(size);
+                for (size_t i = 0; i < size; i++)
+                {
+
+                    string name;
+                    int currentPlayers;
+                    int maxPlayers;
+                    bool hasPassword;
+
+                    if (pack >> name >> currentPlayers >> maxPlayers >> hasPassword) {
+                        _games->push_back(make_tuple(name, currentPlayers, maxPlayers, hasPassword));
                     }
                     else {
                         return false;

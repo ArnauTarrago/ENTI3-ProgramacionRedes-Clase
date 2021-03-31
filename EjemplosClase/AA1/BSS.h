@@ -80,6 +80,14 @@ struct BSS {
                 break;
             }
         }
+        //{
+        //    GameSession* tempGame = new GameSession("TEST1", "", 10);
+        //    games.push_back(tempGame);
+        //}
+        //{
+        //    GameSession* tempGame = new GameSession("TEST2", "123", 10);
+        //    games.push_back(tempGame);
+        //}
 
         selector.add(dispatcher);
 
@@ -99,7 +107,11 @@ struct BSS {
                         players.push_back(tempMessage);
                         waitingplayers.push_back(tempMessage);
                         selector.add(*tempMessage->peer.socket);
-                        //SEND GAMELIST
+                        if (!SendGames(tempMessage)) {
+                            cout << "Connection lost: " << &temp << endl;
+                            cout << "   Ip : " << temp->getRemoteAddress() << endl;
+                            cout << "   Port : " << temp->getRemotePort() << endl;
+                        }
                     }
                 }
                 else {
@@ -118,6 +130,9 @@ struct BSS {
                                     for (list<GameSession*>::iterator it2 = games.begin(); it2 != games.end(); it2++) {
                                         if ((*it2)->NAME == name) {
                                             (*it)->send_ko();
+                                            if (!SendGames((*it))) {
+
+                                            }
                                             notcreated = false;
                                             break;
                                         }
@@ -156,8 +171,12 @@ struct BSS {
                                             break;
                                         }
                                     }
-                                    if (notjoined)
+                                    if (notjoined) {
                                         (*it)->send_ko();
+                                        if (!SendGames((*it))) {
+
+                                        }
+                                    }
                                 }
                             }
                             else {
@@ -191,6 +210,15 @@ struct BSS {
         }
         
 	}
+
+    bool SendGames(MessageManager* messages) {
+        vector<GameSessionSend> tempgames;
+        tempgames.reserve(games.size());
+        for (list<GameSession*>::iterator it = games.begin(); it != games.end(); it++) {
+            tempgames.push_back(make_tuple((*it)->NAME, (*it)->players.size(), (*it)->MAX_PLAYERS, !(*it)->PASSWORD.empty()));
+        }
+        return messages->send_gamelist(&tempgames);
+    }
 };
 
 #endif // BSS_INCLUDED
