@@ -45,7 +45,17 @@ struct GameSession {
         players.clear();
     }
 };
+enum SERVER_STATES {
+    SERVER_STATE_CONNECTING, SERVER_STATE_MANAGING
+    , STATE_COUNT
+};
+const static string SERVER_STATES_STRINGS[] = {
+    "CONNECTING",
+    "MANAGING",
+    "2",
+};
 struct BSS {
+    SERVER_STATES currentState = SERVER_STATES::SERVER_STATE_CONNECTING;
     const int MAX_PLAYERS_MIN = 3;
 	vector<Peer> peerList = vector<Peer>();
 	list<MessageManager*> players = list<MessageManager*>();
@@ -90,6 +100,7 @@ struct BSS {
         //}
 
         selector.add(dispatcher);
+        currentState = SERVER_STATES::SERVER_STATE_MANAGING;
 
         while (true) {
             if (selector.wait()) {

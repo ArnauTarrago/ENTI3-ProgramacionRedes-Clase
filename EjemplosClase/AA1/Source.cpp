@@ -52,6 +52,13 @@ localhost
 
 */
 
+enum PROGRAMTYPE { CLIENT, SERVER, PROGRAMTYPE_COUNT };
+const static string PROGRAMTYPE_STRINGS[] = {
+	"CLIENT",
+	"SERVER",
+	"PROGRAMTYPE_COUNT",
+};
+
 int main()
 {
 	char userType;
@@ -59,7 +66,24 @@ int main()
 	Interface interface;
 	interface.SetGameState("Waiting for players");
 	interface.SetCurrentPlayerTurn("Test 1");
-	interface.PrintScreen();
+
+	interface.AddMessage("1Mensaje");
+	interface.AddMessage("2Mensaje");
+	interface.AddMessage("3Mensaje");
+	interface.AddMessage("4Mensaje");
+	interface.AddMessage("5Mensaje");
+	interface.AddMessage("6Mensaje");
+	interface.AddMessage("7Mensaje");
+	interface.AddMessage("asoihjgfhsadifuasieruf\n naweufh asdiu faoseb\n dfaisbef abesfiawefoiuasdfsdkjf nawipuerh\n fasidfn pawuiseh fawuefawsef");
+	interface.AddMessage("asoihjgfhsadifuasierufnaweufhrgianiwesrfnoiasudfouiawbefouybawsefbawosuebfaukwsbefawsebdfuawbekifuawebfaukwebfwefafe");
+	interface.AddMessage("asoihjgfhsadifuasierufnaweufhrgianiwesrfnoiasudfouiawbefouybawsefbawosuebfaukwsbefawsebdfuawbekifuawebfaukwebfwefafe");
+	interface.AddMessage("asoihjgfhsadifuasierufnaweufhrgianiwesrfnoiasudfouiawbefouybawsefbawosuebfaukwsbefawsebdfuawbekifuawebfaukwebfwefafe");
+	interface.AddMessage("asoihjgfhsadifuasierufnaweufhrgianiwesrfnoiasudfouiawbefouybawsefbawosuebfaukwsbefawsebdfuawbekifuawebfaukwebgre");
+	interface.PrintMessages();
+
+	string temp = interface.GetLine();
+
+	ConsoleClear();
 
 
 	std::cout << "Are you a client 'c' or server 's'?: ";

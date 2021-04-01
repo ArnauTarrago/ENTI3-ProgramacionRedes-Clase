@@ -12,7 +12,29 @@ struct GameSessionClient {
 
     GameSessionClient(string _NAME, int _CURRENT_PLAYERS, int _MAX_PLAYERS, bool _HASPASSWORD) : NAME(_NAME), CURRENT_PLAYERS(_CURRENT_PLAYERS), MAX_PLAYERS(_MAX_PLAYERS), HASPASSWORD(_HASPASSWORD) {};
 };
+enum PLAYER_STATES {
+    PLAYER_STATE_CONNECTING, PLAYER_STATE_BROWSING, PLAYER_STATE_LOADING, PLAYER_STATE_SETUP, PLAYER_STATE_INGAME
+    , PLAYER_STATE_COUNT
+};
+const static string PLAYER_STATES_STRINGS[] = {
+    "CONNECTING",
+    "BROWSING",
+    "LOADING",
+    "SETUP",
+    "INGAME",
+    "5",
+};
+enum PLAYER_STATES_INGAME {
+    PLAYER_STATE_INGAME_NOTINGAME
+    , PLAYER_STATE_INGAME_COUNT
+};
+const static string PLAYER_STATES_INGAME_STRINGS[] = {
+    "NOTINGAME",
+    "1",
+};
 struct Player {
+    PLAYER_STATES currentState = PLAYER_STATES::PLAYER_STATE_CONNECTING;
+    PLAYER_STATES_INGAME currentStateIngame = PLAYER_STATES_INGAME::PLAYER_STATE_INGAME_NOTINGAME;
     const int MAX_PLAYERS;
     int port;
     int PlayerID;
@@ -46,12 +68,16 @@ struct Player {
             }
             else {
                 cout << "Connection established with server" << endl;
+                currentState = PLAYER_STATES::PLAYER_STATE_BROWSING;
                 if (!Browse(socket))
                     return;
+                currentState = PLAYER_STATES::PLAYER_STATE_LOADING;
                 if (!Load(socket))
                     return;
+                currentState = PLAYER_STATES::PLAYER_STATE_SETUP;
                 if (!Setup())
                     return;
+                currentState = PLAYER_STATES::PLAYER_STATE_INGAME;
                 break;
             }
         }
