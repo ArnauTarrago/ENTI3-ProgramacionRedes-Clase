@@ -1,7 +1,6 @@
 #ifndef BSS_INCLUDED
 #define BSS_INCLUDED
 #include <SFML/Network.hpp>
-#include <chrono>
 
 using namespace std;
 using namespace sf;
@@ -42,7 +41,7 @@ struct GameSession {
                 (*it)->peer.socket->disconnect();
             }
         }
-        players.clear();
+        //players.clear();
     }
 };
 enum SERVER_STATES {
@@ -65,8 +64,6 @@ struct BSS {
 	Socket::Status status = Socket::Status::Disconnected;
 	TcpListener dispatcher;
     SocketSelector selector;
-    const std::chrono::milliseconds COUNTDOWN_MILLISECONDS = chrono::milliseconds(500);
-    chrono::steady_clock::time_point coundown = chrono::steady_clock::now();
 	BSS() : MAX_PLAYERS_MIN(MAXPLAYERS) {
         
         while (true) {
@@ -129,6 +126,10 @@ struct BSS {
 
                     for (list<MessageManager*>::iterator it = players.begin(); it != players.end(); it++)
                     {
+						if (players.size() <= 0)
+						{
+							break;
+						}
                         sf::TcpSocket& client = *(*it)->peer.socket;
                         if (selector.isReady(client)) {
                             bool create = false;
@@ -162,7 +163,6 @@ struct BSS {
                                     for (list<GameSession*>::iterator it2 = games.begin(); it2 != games.end(); it2++) {
                                         if ((*it2)->Join(name, password)) {
                                             if ((*it2)->Add((*it))) {
-                                                games.remove((*it2));
                                                 (*it)->send_ok();
                                                 waitingplayers.remove((*it));
                                                 notjoined = false;
@@ -172,7 +172,8 @@ struct BSS {
                                                     delete (*it3)->peer.socket;
                                                     delete* it3;
                                                 }
-                                                delete* it2;
+												((*it2))->players.clear();
+                                                games.remove((*it2));
                                             }
                                             else {
                                                 (*it)->send_ok();
@@ -213,10 +214,6 @@ struct BSS {
                         }
                     }
                 }
-            }
-            if (chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - coundown) > COUNTDOWN_MILLISECONDS) {
-                coundown = chrono::steady_clock::now();
-                //SEND GAMELIST
             }
         }
         

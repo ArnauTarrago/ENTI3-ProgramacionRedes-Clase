@@ -134,6 +134,20 @@ public:
         }
         return true;
     }
+	bool send_gameQuery(bool isCreatingServer, string name, string password, int maxPlayers) {
+		Packet pack;
+		pack << COMUNICATION_MSGS::MSG_GAMEQUERY;
+		if (isCreatingServer)
+		{
+			pack << GAME_QUERY::GAME_SETUP;
+		}
+		else
+		{
+			pack << GAME_QUERY::GAME_JOIN;
+		}
+		pack << name << password << maxPlayers;
+		return send_message(pack);
+	}
     bool send_greet(int _Id) {
         Packet pack;
         pack << COMUNICATION_MSGS::MSG_GREET << _Id;
@@ -242,6 +256,8 @@ public:
         }
         return false;
     }
+
+
 
     //bool receive_seed(int * seed_) {
     //    packet pack = receive_message();
