@@ -17,13 +17,6 @@ struct GameSession {
     }
 
     bool Add(MessageManager* message) {
-        //if (!message->send_peers(&players)) {
-        //    cout << "Connection lost: " << message->peer.socket << endl;
-        //    cout << "   Ip : " << message->peer.socket->getRemoteAddress() << endl;
-        //    cout << "   Port : " << message->peer.socket->getRemotePort() << endl;
-        //}
-        //else {
-        //}
         players.push_back(message);
         return players.size() >= MAX_PLAYERS;
     }
@@ -32,9 +25,7 @@ struct GameSession {
         list<MessageManager*> tempplayers = list<MessageManager*>();
         for (list<MessageManager*>::const_iterator it = players.begin(); it != players.end(); it++) {
             if (!(*it)->send_peers(&tempplayers)) {
-                cout << "Connection lost: " << (*it)->peer.socket << endl;
-                cout << "   Ip : " << (*it)->peer.socket->getRemoteAddress() << endl;
-                cout << "   Port : " << (*it)->peer.socket->getRemotePort() << endl;
+                AddConnection((*it)->peer.socket, false);
             }
             else {
                 tempplayers.push_back(*it);
@@ -65,24 +56,22 @@ struct BSS {
 	TcpListener dispatcher;
     SocketSelector selector;
 	BSS() : MAX_PLAYERS_MIN(MAXPLAYERS) {
-        
         while (true) {
-            cout << "Enter server port" << endl;
-            cin >> port;
+            AddMessage("Enter server port");
+            port = GetInput_Int();
             status = dispatcher.listen(port);
             if (status != Socket::Done) {
-                cout << "Port not available" << endl;
+                AddMessage("Port not available. Retry? (y/n)", RED);
                 dispatcher.close();
-                cout << "Retry? (y/n)" << endl;
                 char retry;
-                cin >> retry;
+                retry = GetInput_Char();
                 if (retry == 'Y' || retry == 'y')
                     continue;
                 else
                     return;
             }
             else {
-                cout << "Port connected, waiting for clients..." << endl << endl;
+                AddMessage("Port connected, waiting for clients...\n");
 
                 break;
             }
@@ -105,31 +94,26 @@ struct BSS {
                     TcpSocket* temp = new TcpSocket();
                     if (dispatcher.accept(*temp) != Socket::Done)
                     {
-                        cout << "Connection not accepted" << endl;
+                        AddMessage("Connection not accepted", RED);
                     }
                     else {
-                        cout << "Connection: " << &temp << endl;
-                        cout << "   Ip : " << temp->getRemoteAddress() << endl;
-                        cout << "   Port : " << temp->getRemotePort() << endl;
+                        AddConnection(temp, true);
                         MessageManager* tempMessage = new MessageManager(temp);
                         players.push_back(tempMessage);
                         waitingplayers.push_back(tempMessage);
                         selector.add(*tempMessage->peer.socket);
                         if (!SendGames(tempMessage)) {
-                            cout << "Connection lost: " << &temp << endl;
-                            cout << "   Ip : " << temp->getRemoteAddress() << endl;
-                            cout << "   Port : " << temp->getRemotePort() << endl;
+                            AddConnection(temp, false);
                         }
                     }
                 }
                 else {
-
                     for (list<MessageManager*>::iterator it = players.begin(); it != players.end(); it++)
                     {
-						if (players.size() <= 0)
-						{
-							break;
-						}
+                        if (players.size() <= 0)
+                        {
+                            break;
+                        }
                         sf::TcpSocket& client = *(*it)->peer.socket;
                         if (selector.isReady(client)) {
                             bool create = false;
@@ -172,8 +156,10 @@ struct BSS {
                                                     delete (*it3)->peer.socket;
                                                     delete* it3;
                                                 }
-												((*it2))->players.clear();
+                                                ((*it2))->players.clear();
+                                                GameSession* temp = *it2;
                                                 games.remove((*it2));
+                                                delete temp;
                                             }
                                             else {
                                                 (*it)->send_ok();
@@ -192,9 +178,7 @@ struct BSS {
                                 }
                             }
                             else {
-                                cout << "Connection lost: " << &client << endl;
-                                cout << "   Ip : " << client.getRemoteAddress() << endl;
-                                cout << "   Port : " << client.getRemotePort() << endl;
+                                AddConnection(&client, false);
                                 for (list<GameSession*>::iterator it2 = games.begin(); it2 != games.end(); it2++) {
                                     try {
                                         (*it2)->players.remove((*it));
@@ -207,10 +191,12 @@ struct BSS {
                                 }
                                 catch (const exception& ex) {
                                 }
+                                MessageManager* temp = *it;
                                 players.remove((*it));
-                                delete (*it)->peer.socket;
-                                delete* it;
+                                delete (temp)->peer.socket;
+                                delete temp;
                             }
+                            break;
                         }
                     }
                 }

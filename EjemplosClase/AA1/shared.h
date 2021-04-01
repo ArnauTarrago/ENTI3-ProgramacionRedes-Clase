@@ -62,13 +62,13 @@ public:
         Socket::Status receiveStatus = this->peer.socket->receive(pack);
         this->lastStatus = receiveStatus;
         if (receiveStatus == Socket::Disconnected) {
-            cout << "Desconectado" << endl;
+            //cout << "Desconectado" << endl;
             this->connected = false;
             this->peer.socket->disconnect();
         }
         if (receiveStatus != Socket::Done)
         {
-            cout << "Recepción de datos fallida" << endl;
+            //cout << "Recepción de datos fallida" << endl;
         }
         else {
             //cout << "Mensaje recibido: " << endl << pack << endl;
@@ -80,7 +80,7 @@ public:
         Socket::Status receiveStatus = this->peer.socket->send(packet_);
         this->lastStatus = receiveStatus;
         if (receiveStatus == Socket::Disconnected) {
-            cout << "Desconectado" << endl;
+            //cout << "Desconectado" << endl;
             return false;
             this->connected = false;
             this->peer.socket->disconnect();
@@ -88,7 +88,7 @@ public:
         if (receiveStatus != Socket::Done)
         {
             return false;
-            cout << "Envio de datos fallido" << endl;
+            //cout << "Envio de datos fallido" << endl;
         }
         else {
             //cout << "Mensaje enviado: " << endl << packet_ << endl;

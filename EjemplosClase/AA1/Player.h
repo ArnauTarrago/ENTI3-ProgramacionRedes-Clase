@@ -71,15 +71,14 @@ struct Player {
         TcpSocket * socket = new TcpSocket();
         Socket::Status status;
         while (true) {
-            cout << "Enter server ip" << endl;
-            cin >> ip;
-            cout << "Enter server port" << endl;
-            cin >> port;
+            AddMessage("Enter server ip:");
+            ip = GetInput_String();
+            AddMessage("Enter server port:");
+            port = GetInput_Int();
             status = socket->connect(ip, port/*, sf::seconds(15.f)*/);
             if (status != sf::Socket::Done) {
-                cout << "Connection not available" << endl;
+                AddMessage("Connection not available. Retry? (y/n)", RED);
                 socket->disconnect();
-                cout << "Retry? (y/n)" << endl;
                 char retry;
                 cin >> retry;
                 if (retry == 'Y' || retry == 'y')
@@ -88,7 +87,7 @@ struct Player {
                     return;
             }
             else {
-                cout << "Connection established with server" << endl;
+                AddMessage("Connection established with server");
                 currentState = PLAYER_STATES::PLAYER_STATE_BROWSING;
                 if (!Browse(socket))
                     return;
@@ -129,28 +128,27 @@ struct Player {
         
         bool waiting = true;
         while (waiting) {
-			
-			cout << "Do you wish to create 'c' a game or join 'j' an existing game? " << endl;
-			cin >> userType;
 
+            AddMessage("Do you wish to create 'c' a game or join 'j' an existing game?");
+            userType = GetInput_Char();
 			switch (userType)
 			{
 			case 'c':
 				char userResponse;
 				isCreatingServer = true;
 
-				cout << "Introduce the name of the server:" << endl;
+				AddMessage("Introduce the name of the server:");
 				cin >> serverName;
-				cout << "Is the server password protected? (y/n)" << endl;
+				AddMessage("Is the server password protected? (y/n)");
 				cin >> userResponse;
 
 				if (userResponse == 'y')
 				{
-					cout << "Introduce the password of the server:" << endl;
+					AddMessage("Introduce the password of the server:");
 					cin >> password;
 				}
 
-				cout << "Introduce the max number of players:" << endl;
+				AddMessage("Introduce the max number of players:");
 				cin >> maxNumPlayers;
 
 				if (message.send_gameQuery(isCreatingServer, serverName, password, maxNumPlayers))
@@ -171,15 +169,15 @@ struct Player {
 				char userResponse2;
 
 				isCreatingServer = false;
-				cout << "Introduce the name of the server:" << endl;
+				AddMessage("Introduce the name of the server:");
 				cin >> serverName;
 
-				cout << "Is the server password protected? (y/n)" << endl;
+				AddMessage("Is the server password protected? (y/n)");
 				cin >> userResponse2;
 
 				if (userResponse2 == 'y')
 				{
-					cout << "Introduce the password of the server:" << endl;
+					AddMessage("Introduce the password of the server:");
 					cin >> password;
 				}
 				
@@ -234,15 +232,11 @@ struct Player {
                 TcpSocket* socket = new TcpSocket();
                 status = socket->connect(peerList.at(i).ip, peerList.at(i).port);
                 if (status != sf::Socket::Done) {
-                    cout << "Client lost: " << &socket << std::endl;
-                    cout << "   Ip : " << socket->getRemoteAddress() << endl;
-                    cout << "   Port : " << socket->getRemotePort() << endl;
+                    AddConnection(socket, false);
                     return false;
                 }
                 else {
-                    cout << "Client arrived: " << &socket << std::endl;
-                    cout << "   Ip : " << socket->getRemoteAddress() << endl;
-                    cout << "   Port : " << socket->getRemotePort() << endl;
+                    AddConnection(socket, true);
                     messages[socket] = new MessageManager(socket);
                     selector.add(*socket);
                 }
@@ -251,26 +245,22 @@ struct Player {
         if (messages.size() < MAX_PLAYERS) {
             status = listener.listen(localport);
             if (status != Socket::Done) {
-                cout << "Could not open ports to listen for clients" << endl;
+                AddMessage("Could not open ports to listen for clients");
                 return false;
             }
             else {
-                cout << "Port opened, listening for clients" << endl;
+                AddMessage("Port opened, listening for clients");
                 while (messages.size() < MAX_PLAYERS - 1) {
                     sf::TcpSocket* socket = new sf::TcpSocket;
                     if (listener.accept(*socket) == sf::Socket::Done)
                     {
-                        cout << "Client arrived: " << &socket << std::endl;
-                        cout << "   Ip : " << socket->getRemoteAddress() << endl;
-                        cout << "   Port : " << socket->getRemotePort() << endl;
+                        AddConnection(socket, true);
                         messages[socket] = new MessageManager(socket);
                         selector.add(*socket);
                     }
                     else
                     {
-                        cout << "Client lost: " << &socket << std::endl;
-                        cout << "   Ip : " << socket->getRemoteAddress() << endl;
-                        cout << "   Port : " << socket->getRemotePort() << endl;
+                        AddConnection(socket, false);
                         return false;
                     }
                 }
@@ -287,13 +277,13 @@ struct Player {
         for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
         {
             if (!it->second->send_greet(PlayerID)) {
-                cout << "Client lost: " << &it->first << std::endl;
-                cout << "   Ip : " << it->first->getRemoteAddress() << endl;
-                cout << "   Port : " << it->first->getRemotePort() << endl;
+                AddConnection(it->first, false);
                 return false;
             }
         }
-        cout << "You are the player: " << PlayerID << endl;
+        ostringstream stringstream;
+        stringstream << "You are the player: " << PlayerID;
+        AddMessage(stringstream.str());
         players[PlayerID] = nullptr;
         while (players.size() < MAX_PLAYERS) {
             if (selector.wait())
@@ -304,13 +294,13 @@ struct Player {
                     sf::TcpSocket& client = *it->first;
                     if (selector.isReady(client)) {
                         if (!messages[&client]->receive_greet(&id)) {
-                            cout << "Client lost: " << &it->first << std::endl;
-                            cout << "   Ip : " << it->first->getRemoteAddress() << endl;
-                            cout << "   Port : " << it->first->getRemotePort() << endl;
+                            AddConnection(it->first, false);
                             return false;
                         }
                         players[id] = &client;
-                        cout << "Player " << id << " waves at you" << endl;
+                        ostringstream stringstream;
+                        stringstream << "Player " << id << " waves at you";
+                        AddMessage(stringstream.str());
                     }
                 }
             }
@@ -318,7 +308,9 @@ struct Player {
         if (PlayerID > 0) {
 			seed = players[0]->getRemotePort();
         }
-        cout << "Seed: " << seed << endl;
+        stringstream.str("");
+        stringstream << "Seed: " << seed;
+        AddMessage(stringstream.str());
 
         deck = Deck();
         deck.Shuffle(seed);

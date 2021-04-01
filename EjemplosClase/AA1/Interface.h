@@ -1,7 +1,6 @@
 #include <sstream>
 #include <string>
-#include <iostream>       
-#include "ConsoleControl.h"
+#include <iostream>      
 #pragma once
 
 class Interface
@@ -14,6 +13,7 @@ public:
 		const short int AREA_HEIGHT = 0;
 		const ConsoleColor AREA_COLOR_CHAR = LIGHTGREY;
 		const ConsoleColor AREA_COLOR_BACK = BLACK;
+		string innerText;
 		InterfaceArea(
 			short int _AREA_START_X = 0,
 			short int _AREA_START_Y = 0,
@@ -39,29 +39,43 @@ public:
 			}
 			ConsoleXY(AREA_START_X, AREA_START_Y);
 			ConsoleSetColor(ConsoleColor::WHITE, ConsoleColor::BLACK);
+			PrintText();
 		}
 		void SetText(const string* text, bool resetCursor = true) {
 			SetText(text->c_str(), resetCursor);
 		}
 		void SetText(const char* text, bool resetCursor = true) {
+			innerText = text;
+			PrintText(resetCursor);
+		}
+		void PrintText(bool resetCursor = true) {
 			ConsoleSetColor(AREA_COLOR_CHAR, AREA_COLOR_BACK);
 			ConsoleXY(AREA_START_X, AREA_START_Y);
-			cout << text;
+			cout << innerText;
 			if (resetCursor) {
 				ConsoleXY(AREA_START_X, AREA_START_Y);
 				ConsoleSetColor(ConsoleColor::WHITE, ConsoleColor::BLACK);
 			}
 		}
 	};
-	InterfaceArea messages = InterfaceArea(5, 5, 50, 20, WHITE, DARKGREY);
-	InterfaceArea gamelist = InterfaceArea(60, 5, 50, 20, WHITE, DARKGREY);
+	InterfaceArea messagesTitle = InterfaceArea(1, 6, 58, 1, DARKGREY, LIGHTGREY);
+	InterfaceArea messages = InterfaceArea(1, 7, 58, 20, WHITE, DARKGREY);
+	InterfaceArea gamelistTitle = InterfaceArea(61, 6, 58, 1, DARKGREY, LIGHTGREY);
+	InterfaceArea gamelist = InterfaceArea(61, 7, 58, 20, WHITE, DARKGREY);
 	InterfaceArea commandArea = InterfaceArea(1, 28, 118, 1, BLACK, WHITE);
 	Interface() {
 		ConsoleSetColor(ConsoleColor::WHITE, ConsoleColor::BLACK);
 		ConsoleClear();
+		messagesTitle.Clear();
 		messages.Clear();
 		gamelist.Clear();
 		commandArea.Clear();
+		gamelistTitle.Clear();
+		messagesTitle.SetText("Console:");
+	}
+	void ResetCursor() {
+		ConsoleXY(commandArea.AREA_START_X + 1, commandArea.AREA_START_Y + 1);
+		ConsoleSetColor(commandArea.AREA_COLOR_CHAR, commandArea.AREA_COLOR_BACK);
 	}
 	void UpdateClient(const Player* player) {
 		switch (player->currentState)
@@ -96,7 +110,10 @@ public:
 		PrintMessages();
 		gamelist.Clear();
 		commandArea.Clear();
+		messagesTitle.Clear();
+		gamelistTitle.Clear();
 		commandArea.SetText(">", false);
+		ResetCursor();
 		//ConsoleSetColor(ConsoleColor::WHITE, ConsoleColor::DARKRED);
 		//ConsoleXY(0, 0);
 		//std::cout << "State: " << gameState;
@@ -137,16 +154,17 @@ public:
 		for (int i = consoleMessages.size() - 1; i >= 0; i--)
 		{
 			ConsoleXY(messages.AREA_START_X, messages.AREA_START_Y + messages.AREA_HEIGHT - j - 1);
-			cout << consoleMessages[i];
+			ConsoleSetColor(get<0>(consoleMessages[i]), messages.AREA_COLOR_BACK);
+			cout << get<1>(consoleMessages[i]);
 			j++;
 			if (j >= messages.AREA_HEIGHT)
 				break;
 		}
-		ConsoleSetColor(ConsoleColor::WHITE, ConsoleColor::BLACK);
+		ResetCursor();
 	}
-	void AddLine(const string message, vector<string>* messagelist, const int MAX_LENGTH) {
+	void AddLine(const string message, vector<tuple<ConsoleColor, string>>* messagelist, const int MAX_LENGTH, const ConsoleColor color) {
 		string newMessage = string(message);
-		vector<string> tempmessages;
+		vector<tuple<ConsoleColor, string>> tempmessages;
 		int j = 0;
 		ostringstream stringstream;
 		for (size_t i = 0; i < newMessage.size(); i++)
@@ -154,7 +172,7 @@ public:
 			char tempchar = newMessage.at(i);
 			if (tempchar == '\n' || j >= MAX_LENGTH) {
 				//string temp = string(stringstream.str());
-				tempmessages.push_back(stringstream.str());
+				tempmessages.push_back(make_tuple(color, stringstream.str()));
 				stringstream.str("");
 				j = 0;
 			}
@@ -164,17 +182,33 @@ public:
 			}
 		}
 		//string temp = string(stringstream.str());
-		tempmessages.push_back(stringstream.str());
+		tempmessages.push_back(make_tuple(color, stringstream.str()));
 		stringstream.str("");
 		//reverse(tempmessages.begin(), tempmessages.end());
 		messagelist->insert(messagelist->end(), tempmessages.begin(), tempmessages.end());
 	}
-	void AddMessage(const string message, bool print = false) {
-		AddLine(message, &consoleMessages, messages.AREA_WIDTH);
+	void AddMessage(const string message, ConsoleColor color = WHITE, bool print = true) {
+		AddLine(message, &consoleMessages, messages.AREA_WIDTH, color);
 		if (print)
 			PrintMessages();
 	}
-	string GetLine(bool registerLine = true) {
+	void AddConnection(const TcpSocket* temp, bool ok) {
+		ostringstream stringstream;
+		if (ok) {
+			stringstream << "Connection: " << &temp << endl;
+			stringstream << "	Ip : " << temp->getRemoteAddress() << endl;
+			stringstream << "	Port : " << temp->getRemotePort() << endl;
+			AddMessage(stringstream.str(), GREEN);
+		}
+		else {
+			stringstream << "Connection lost: " << &temp << endl;
+			stringstream << "	Ip : " << temp->getRemoteAddress() << endl;
+			stringstream << "	Port : " << temp->getRemotePort() << endl;
+			AddMessage(stringstream.str(), RED);
+		}
+	}
+
+	string GetInput_String(bool registerLine = true) {
 		commandArea.Clear();
 		commandArea.SetText(">", false);
 		string temp;
@@ -183,6 +217,35 @@ public:
 			AddMessage(temp);
 			PrintScreen();
 		}
+		ResetCursor();
+		return temp;
+	}
+	char GetInput_Char(bool registerLine = true) {
+		commandArea.Clear();
+		commandArea.SetText(">", false);
+		char temp;
+		cin >> temp;
+		if (registerLine) {
+			stringstream ss;
+			ss << temp;
+			AddMessage(ss.str());
+			PrintScreen();
+		}
+		ResetCursor();
+		return temp;
+	}
+	int GetInput_Int(bool registerLine = true) {
+		commandArea.Clear();
+		commandArea.SetText(">", false);
+		int temp;
+		cin >> temp;
+		if (registerLine) {
+			stringstream ss;
+			ss << temp;
+			AddMessage(ss.str());
+			PrintScreen();
+		}
+		ResetCursor();
 		return temp;
 	}
 private:
@@ -190,5 +253,5 @@ private:
 	std::string names[6]; // CHANGE TO VECTORS
 	std::string score[6]; // CHANGE TO VECTORS
 	std::string connectedPlayers[6]; // CHANGE TO VECTORS
-	vector<string> consoleMessages;
+	vector<tuple<ConsoleColor, string>> consoleMessages;
 };

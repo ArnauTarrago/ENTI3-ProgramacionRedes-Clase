@@ -1,5 +1,6 @@
 #include <thread>
-#include <iostream>
+#include <sstream>
+#include <iostream>    
 #include <mutex>
 #include <chrono>
 #include <string>
@@ -41,6 +42,12 @@
 #pragma endregion
 
 #include "shared.h"
+#include "ConsoleControl.h"
+void AddMessage(const string message, ConsoleColor color = WHITE, bool print = true);
+void AddConnection(const TcpSocket* temp, bool ok);
+string GetInput_String(bool registerLine = true);
+char GetInput_Char(bool registerLine = true);
+int GetInput_Int(bool registerLine = true);
 #include "BSS.h"
 #include "Player.h"
 #include "Interface.h"
@@ -52,51 +59,42 @@ localhost
 
 */
 
-enum PROGRAMTYPE { CLIENT, SERVER, PROGRAMTYPE_COUNT };
+enum PROGRAMTYPE { PROGRAMTYPE_NOTSET, PROGRAMTYPE_CLIENT, PROGRAMTYPE_SERVER, PROGRAMTYPE_COUNT };
 const static string PROGRAMTYPE_STRINGS[] = {
+	"NOT SET",
 	"CLIENT",
 	"SERVER",
-	"PROGRAMTYPE_COUNT",
+	"3",
 };
+PROGRAMTYPE programtype = PROGRAMTYPE::PROGRAMTYPE_NOTSET;
+Interface ui;
+
+void AddMessage(const string message, ConsoleColor color, bool print) { ui.AddMessage(message, color, print); }
+void AddConnection(const TcpSocket* temp, bool ok) { ui.AddConnection(temp, ok); }
+string GetInput_String(bool registerLine) { return ui.GetInput_String(registerLine); }
+char GetInput_Char(bool registerLine) { return ui.GetInput_Char(registerLine); }
+int GetInput_Int(bool registerLine) { return ui.GetInput_Int(registerLine); }
 
 int main()
 {
-	char userType;
+	ui.SetGameState("Waiting for players");
+	ui.SetCurrentPlayerTurn("Test 1");
+	ui.PrintScreen();
 
-	Interface interface;
-	interface.SetGameState("Waiting for players");
-	interface.SetCurrentPlayerTurn("Test 1");
+	ui.AddMessage("Are you a client 'c' or server 's'?: ");
+	char userType = ui.GetInput_Char();
 
-	interface.AddMessage("1Mensaje");
-	interface.AddMessage("2Mensaje");
-	interface.AddMessage("3Mensaje");
-	interface.AddMessage("4Mensaje");
-	interface.AddMessage("5Mensaje");
-	interface.AddMessage("6Mensaje");
-	interface.AddMessage("7Mensaje");
-	interface.AddMessage("asoihjgfhsadifuasieruf\n naweufh asdiu faoseb\n dfaisbef abesfiawefoiuasdfsdkjf nawipuerh\n fasidfn pawuiseh fawuefawsef");
-	interface.AddMessage("asoihjgfhsadifuasierufnaweufhrgianiwesrfnoiasudfouiawbefouybawsefbawosuebfaukwsbefawsebdfuawbekifuawebfaukwebfwefafe");
-	interface.AddMessage("asoihjgfhsadifuasierufnaweufhrgianiwesrfnoiasudfouiawbefouybawsefbawosuebfaukwsbefawsebdfuawbekifuawebfaukwebfwefafe");
-	interface.AddMessage("asoihjgfhsadifuasierufnaweufhrgianiwesrfnoiasudfouiawbefouybawsefbawosuebfaukwsbefawsebdfuawbekifuawebfaukwebfwefafe");
-	interface.AddMessage("asoihjgfhsadifuasierufnaweufhrgianiwesrfnoiasudfouiawbefouybawsefbawosuebfaukwsbefawsebdfuawbekifuawebfaukwebgre");
-	interface.PrintMessages();
-
-	string temp = interface.GetLine();
-
-	ConsoleClear();
-
-
-	std::cout << "Are you a client 'c' or server 's'?: ";
-	std::cin >> userType;
 	sf::TcpSocket* sock_0 = new sf::TcpSocket();
 	bool okConnection = false;
 
 	if (userType == 's')
 	{
+		programtype = PROGRAMTYPE::PROGRAMTYPE_SERVER;
 		BSS bss;
 	}
-	else if (userType == 'c')
+	else
 	{
+		programtype = PROGRAMTYPE::PROGRAMTYPE_CLIENT;
 		Player player;
 	}
 
