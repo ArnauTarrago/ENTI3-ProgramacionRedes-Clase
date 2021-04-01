@@ -2,6 +2,27 @@
 #define PLAYER_INCLUDED
 #include "Card.h"
 
+/*
+c
+localhost
+50000
+c
+asd
+123
+3
+
+*/
+
+/*
+c
+localhost
+50000
+j
+asd
+123
+
+*/
+
 using namespace std;
 using namespace sf;
 struct GameSessionClient {
@@ -58,15 +79,101 @@ struct Player {
 	}
 
     bool Browse(TcpSocket* _socket) {
+		bool isCreatingServer;
+		char userType;
+		string serverName = "";
+		string password = "";
+		int maxNumPlayers = -1;
+		Packet pack;
+		int msg = COMUNICATION_MSGS::MSG_NULL;
+
         MessageManager message = MessageManager(_socket);
         vector<GameSessionClient> games;
         if (!ReceiveGames(&message, &games)) {
             return false;
         }
-        cout << games.size() << endl;
+		for (size_t i = 0; i < games.size(); i++)
+		{
+			string auxHasPassword = "ERROR";
+			if (games[i].HASPASSWORD == 1) auxHasPassword = "Yes";
+			else auxHasPassword = "No";
+
+			cout << "Name: '" << games[i].NAME << "' | Password protected: '" << auxHasPassword << "' | Players: " << games[i].CURRENT_PLAYERS << "/" << games[i].MAX_PLAYERS << endl;
+		}
+        
         bool waiting = true;
         while (waiting) {
+			
+			cout << "Do you wish to create 'c' a game or join 'j' an existing game? " << endl;
+			cin >> userType;
 
+			switch (userType)
+			{
+			case 'c':
+				char userResponse;
+				isCreatingServer = true;
+
+				cout << "Introduce the name of the server:" << endl;
+				cin >> serverName;
+				cout << "Is the server password protected? (y/n)" << endl;
+				cin >> userResponse;
+
+				if (userResponse == 'y')
+				{
+					cout << "Introduce the password of the server:" << endl;
+					cin >> password;
+				}
+
+				cout << "Introduce the max number of players:" << endl;
+				cin >> maxNumPlayers;
+
+				if (message.send_gameQuery(isCreatingServer, serverName, password, maxNumPlayers))
+				{
+					if (message.receive_message() >> msg && msg == COMUNICATION_MSGS::MSG_OK)
+					{
+						waiting = false;
+					}
+					else
+					{
+						if (!ReceiveGames(&message, &games)) return false;
+					}
+				}
+				else return false;
+
+				break;
+			case 'j':
+				char userResponse2;
+
+				isCreatingServer = false;
+				cout << "Introduce the name of the server:" << endl;
+				cin >> serverName;
+
+				cout << "Is the server password protected? (y/n)" << endl;
+				cin >> userResponse2;
+
+				if (userResponse2 == 'y')
+				{
+					cout << "Introduce the password of the server:" << endl;
+					cin >> password;
+				}
+				
+				if (message.send_gameQuery(isCreatingServer, serverName, password, maxNumPlayers))
+				{
+					if (message.receive_message() >> msg && msg == COMUNICATION_MSGS::MSG_OK)
+					{
+						waiting = false;
+					}
+					else
+					{
+						if (!ReceiveGames(&message, &games)) return false;							
+					}
+				}
+				else return false;
+
+				break;
+			default:
+				break;
+			}
         }
         return true;
     }
