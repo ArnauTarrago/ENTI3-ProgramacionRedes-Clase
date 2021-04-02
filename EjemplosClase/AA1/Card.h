@@ -113,6 +113,8 @@ struct Deck {
 	}
 };
 struct Hand {
+	int points = 0;
+	int numberOfCards = 0;
 	bool isActive;
 	int currentTurn;
 	map<int, int> categories;
@@ -127,34 +129,67 @@ struct Hand {
 		return hand[_card];
 	}
 	void add(Card _card) {
-		categories[_card.CAT]++;
+		categories[_card.CAT]++;		
 		hand[_card] = true;
+		numberOfCards++;
+		if (checkIfCategoryHasBeenCompleted(_card.CAT))
+		{
+			points++;
+			for (map<Card, bool>::iterator it = hand.begin(); it != hand.end(); ++it) {
+				if (it->second) {
+					if (it->first.CAT == _card.CAT) {
+						remove(it->first);
+					}
+				}
+			}
+		}
 	}
 	void remove(Card _card) {
 		categories[_card.CAT]--;
 		hand[_card] = false;
-	}
-	void Print() {
-		cout << "Current Points:" << endl;
-		for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
+		numberOfCards--;
+		if (numberOfCards <= 0)
 		{
-			cout << Card::ToString(static_cast<Card::CATEGORY>(i)) << ": " << categories[static_cast<Card::CATEGORY>(i)] << ", ";
+			isActive = false;
 		}
-		cout << endl << "Points: " << points() << endl;
-		cout << "Current Hand:" << endl;
+	}
+	//void Print() {
+	//	cout << "Current Points:" << endl;
+	//	for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
+	//	{
+	//		cout << Card::ToString(static_cast<Card::CATEGORY>(i)) << ": " << categories[static_cast<Card::CATEGORY>(i)] << ", ";
+	//	}
+	//	cout << endl << "Points: " << points() << endl;
+	//	cout << "Current Hand:" << endl;
+	//	for (map<Card, bool>::iterator it = hand.begin(); it != hand.end(); ++it) {
+	//		if (it->second)
+	//			cout << Card::ToString(it->first) << endl;
+	//	}
+	//}
+	bool checkIfCategoryHasBeenCompleted(Card::CATEGORY _cat)
+	{
+		int auxCount = 0;
 		for (map<Card, bool>::iterator it = hand.begin(); it != hand.end(); ++it) {
-			if (it->second)
-				cout << Card::ToString(it->first) << endl;
+			if (it->second) {
+				if (it->first.CAT == _cat) {
+					auxCount++;
+					if (auxCount == Card::NUMBER_COUNT) {
+						return true;
+					}
+				}
+			}
 		}
+		return false;
 	}
-	int points(){
-		int point = 0;
-		for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
-		{
-			if (categories[static_cast<Card::CATEGORY>(i)] >= Card::NUMBER_COUNT)
-				point++;
-		}
-		return point;
-	}
+
+	//int points(){
+	//	int point = 0;
+	//	for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
+	//	{
+	//		if (categories[static_cast<Card::CATEGORY>(i)] >= Card::NUMBER_COUNT)
+	//			point++;
+	//	}
+	//	return point;
+	//}
 };
 #endif // CARD_INCLUDED

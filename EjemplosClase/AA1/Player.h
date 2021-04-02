@@ -8,7 +8,7 @@ localhost
 50000
 c
 asd
-123
+n
 3
 
 */
@@ -19,7 +19,7 @@ localhost
 50000
 j
 asd
-123
+n
 
 */
 
@@ -327,30 +327,140 @@ struct Player {
         {
             hands[i % MAX_PLAYERS]->add(*deck.deck[i]);
         }
-        hands[PlayerID]->Print();
+        //hands[PlayerID]->Print();
 
         return true;
     }
 
 	bool Play() {
 		string auxString = "";
+		int playerSelected, categorySelected, numberSelected;
 		ostringstream stringstream;
 		
-
-		while (true) // add exit condition
+		while (true) 
 		{
+			if (hands[PlayerID]->currentTurn == 0)
+			{
+				// CHEATING CONTROL
+			}
+
+
+			if (GetNumberOfActivePlayers() <= 2 || !AreThereAnyCardsLeft())
+			{
+				int auxPoints = 0;
+				int playerWinnerID = -1;
+
+				for (size_t i = 0; i < players.size(); i++)
+				{
+					if (hands[i]->points > auxPoints)
+					{
+						auxPoints = hands[i]->points;
+						playerWinnerID = i;
+					}
+				}
+				if(playerWinnerID == -1) stringstream << "All of you lose! Congratulations!";
+				else stringstream << "Game Over! The winner is: 'Player " << playerWinnerID << "'!";				
+				AddMessage(stringstream.str());
+				stringstream.str("");
+				break;
+			}
+
 			while (hands[PlayerID]->currentTurn == PlayerID)
 			{
-				AddMessage("Which family would you like to choose?");
+				AddMessage("Which player would you like to ask a card from? Type the number:");
+				for (size_t i = 0; i < players.size(); i++)
+				{
+					if(i != PlayerID) stringstream << " - " << i << " - " << " Player " << i << "\n";		
+				}
+				AddMessage(stringstream.str());
+				stringstream.str("");
+				playerSelected = GetInput_Int();
+
+				playerSelected >= players.size() ? playerSelected = players.size() - 1 : playerSelected = playerSelected;
+				playerSelected < 0 ? playerSelected = 0 : playerSelected = playerSelected;
+				if (playerSelected == PlayerID)
+				{
+					AddMessage("You can't ask yourself!");
+					break;
+				}
+
+				AddMessage("Which family would you like to choose? Type the number:");
 				for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
 				{
-					stringstream << " - " << Card::ToString(static_cast<Card::CATEGORY>(i));
-					AddMessage(stringstream.str());
+					stringstream << " - " << i << " - " << Card::ToString(static_cast<Card::CATEGORY>(i)) << "\n";					
 					
 				}
+				AddMessage(stringstream.str());
+				stringstream.str("");
+				categorySelected = GetInput_Int();
+				categorySelected >= Card::CATEGORY_COUNT ? categorySelected = Card::CATEGORY_COUNT - 1 : categorySelected = categorySelected;
+				categorySelected < 0 ? categorySelected = 0 : categorySelected = categorySelected;				
+
+				AddMessage("Which person would you like to choose? Type the number:");
+				for (size_t i = 0; i < Card::NUMBER_COUNT; i++)
+				{
+					stringstream << " - " << i << " - " << Card::ToString(static_cast<Card::NUMBER>(i)) << "\n";					
+
+				}
+				AddMessage(stringstream.str());
+				stringstream.str("");
+				numberSelected = GetInput_Int();
+				numberSelected >= Card::NUMBER_COUNT ? numberSelected = Card::NUMBER_COUNT - 1 : numberSelected = numberSelected;
+				numberSelected < 0 ? numberSelected = 0 : numberSelected = numberSelected;
+				
+
+				Card auxCard(categorySelected, numberSelected);
+
+				if (hands[playerSelected]->has(auxCard))
+				{
+					// TODO: Send message to other network players that the player has the card
+					AddMessage("Player has the card.");
+
+					hands[PlayerID]->add(auxCard);
+					hands[playerSelected]->remove(auxCard);
+				}
+				else
+				{
+					// TODO: Send message to other network players that the player doesn't have the card
+					AddMessage("Player doesn't have the card, passing the turn.");
+
+					for (size_t i = 0; i < players.size(); i++)
+					{				
+
+						do 
+						{
+							hands[i]->currentTurn++;
+							if (hands[i]->currentTurn >= players.size()) hands[i]->currentTurn = 0;
+						} while (!hands[hands[i]->currentTurn]->isActive);
+					}
+					stringstream << "It's the turn of " << hands[PlayerID]->currentTurn;
+					AddMessage(stringstream.str());
+					stringstream.str("");
+				}
 			}
+			/*AddMessage("Would you like to chat with someone? Type their number:");
+			playerSelected = GetInput_Char();*/
 		}
 		
+	}
+		
+	int GetNumberOfActivePlayers()
+	{
+		int numberOfActivePlayers = 0;
+		for (size_t i = 0; i < players.size(); i++)
+		{
+			if (hands[i]->isActive) numberOfActivePlayers++;
+		}
+		return numberOfActivePlayers;
+	}
+
+	bool AreThereAnyCardsLeft()
+	{
+		for (size_t i = 0; i < players.size(); i++)
+		{
+			if (hands[i]->numberOfCards > 0) return true;
+		}
+		return false;
 	}
 };
 
