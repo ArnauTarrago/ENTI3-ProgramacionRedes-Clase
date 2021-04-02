@@ -129,7 +129,17 @@ struct Hand {
 	void add(Card _card) {
 		categories[_card.CAT]++;		
 		hand[_card] = true;
-		checkIfCategoryHasBeenCompleted();
+		
+		if (checkIfCategoryHasBeenCompleted(_card.CAT))
+		{
+			for (map<Card, bool>::iterator it = hand.begin(); it != hand.end(); ++it) {
+				if (it->second) {
+					if (it->first.CAT == _card.CAT) {
+						remove(it->first);
+					}
+				}
+			}
+		}
 	}
 	void remove(Card _card) {
 		categories[_card.CAT]--;
@@ -148,9 +158,20 @@ struct Hand {
 				cout << Card::ToString(it->first) << endl;
 		}
 	}
-	void checkIfCategoryHasBeenCompleted()
+	bool checkIfCategoryHasBeenCompleted(Card::CATEGORY _cat)
 	{
-
+		int auxCount = 0;
+		for (map<Card, bool>::iterator it = hand.begin(); it != hand.end(); ++it) {
+			if (it->second) {
+				if (it->first.CAT == _cat) {
+					auxCount++;
+					if (auxCount == Card::NUMBER_COUNT) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 
 	int points(){
