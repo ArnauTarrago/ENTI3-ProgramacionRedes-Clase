@@ -327,7 +327,7 @@ struct Player {
         {
             hands[i % MAX_PLAYERS]->add(*deck.deck[i]);
         }
-        hands[PlayerID]->Print();
+        //hands[PlayerID]->Print();
 
         return true;
     }
@@ -337,8 +337,34 @@ struct Player {
 		int playerSelected, categorySelected, numberSelected;
 		ostringstream stringstream;
 		
-		while (true) // add exit condition
+		while (true) 
 		{
+			if (hands[PlayerID]->currentTurn == 0)
+			{
+				// CHEATING CONTROL
+			}
+
+
+			if (GetNumberOfActivePlayers() <= 2 || !AreThereAnyCardsLeft())
+			{
+				int auxPoints = 0;
+				int playerWinnerID = -1;
+
+				for (size_t i = 0; i < players.size(); i++)
+				{
+					if (hands[i]->points > auxPoints)
+					{
+						auxPoints = hands[i]->points;
+						playerWinnerID = i;
+					}
+				}
+				if(playerWinnerID == -1) stringstream << "All of you lose! Congratulations!";
+				else stringstream << "Game Over! The winner is: 'Player " << playerWinnerID << "'!";				
+				AddMessage(stringstream.str());
+				stringstream.str("");
+				break;
+			}
+
 			while (hands[PlayerID]->currentTurn == PlayerID)
 			{
 				AddMessage("Which player would you like to ask a card from? Type the number:");
@@ -349,14 +375,14 @@ struct Player {
 				AddMessage(stringstream.str());
 				stringstream.str("");
 				playerSelected = GetInput_Int();
+
+				playerSelected >= players.size() ? playerSelected = players.size() - 1 : playerSelected = playerSelected;
+				playerSelected < 0 ? playerSelected = 0 : playerSelected = playerSelected;
 				if (playerSelected == PlayerID)
 				{
 					AddMessage("You can't ask yourself!");
 					break;
 				}
-				playerSelected >= players.size() ? playerSelected = players.size() - 1 : playerSelected = playerSelected;
-				playerSelected < 0 ? playerSelected = 0 : playerSelected = playerSelected;
-				
 
 				AddMessage("Which family would you like to choose? Type the number:");
 				for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
@@ -368,8 +394,7 @@ struct Player {
 				stringstream.str("");
 				categorySelected = GetInput_Int();
 				categorySelected >= Card::CATEGORY_COUNT ? categorySelected = Card::CATEGORY_COUNT - 1 : categorySelected = categorySelected;
-				categorySelected < 0 ? categorySelected = 0 : categorySelected = categorySelected;
-				
+				categorySelected < 0 ? categorySelected = 0 : categorySelected = categorySelected;				
 
 				AddMessage("Which person would you like to choose? Type the number:");
 				for (size_t i = 0; i < Card::NUMBER_COUNT; i++)
@@ -388,11 +413,17 @@ struct Player {
 
 				if (hands[playerSelected]->has(auxCard))
 				{
+					// TODO: Send message to other network players that the player has the card
 					AddMessage("Player has the card.");
+
+					hands[PlayerID]->add(auxCard);
+					hands[playerSelected]->remove(auxCard);
 				}
 				else
 				{
+					// TODO: Send message to other network players that the player doesn't have the card
 					AddMessage("Player doesn't have the card, passing the turn.");
+
 					for (size_t i = 0; i < players.size(); i++)
 					{				
 
@@ -411,6 +442,25 @@ struct Player {
 			playerSelected = GetInput_Char();*/
 		}
 		
+	}
+		
+	int GetNumberOfActivePlayers()
+	{
+		int numberOfActivePlayers = 0;
+		for (size_t i = 0; i < players.size(); i++)
+		{
+			if (hands[i]->isActive) numberOfActivePlayers++;
+		}
+		return numberOfActivePlayers;
+	}
+
+	bool AreThereAnyCardsLeft()
+	{
+		for (size_t i = 0; i < players.size(); i++)
+		{
+			if (hands[i]->numberOfCards > 0) return true;
+		}
+		return false;
 	}
 };
 
