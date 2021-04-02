@@ -58,6 +58,10 @@ public:
 			}
 		}
 	};
+	InterfaceArea statusTitle = InterfaceArea(1, 1, 10, 1, DARKGREY, LIGHTGREY);
+	InterfaceArea statusType = InterfaceArea(1, 2, 10, 1, WHITE, DARKGREY);
+	InterfaceArea statusConnection = InterfaceArea(1, 3, 10, 1, WHITE, DARKGREY);
+	InterfaceArea statusGame = InterfaceArea(1, 4, 10, 1, WHITE, DARKGREY);
 	InterfaceArea messagesTitle = InterfaceArea(1, 6, 58, 1, DARKGREY, LIGHTGREY);
 	InterfaceArea messages = InterfaceArea(1, 7, 58, 20, WHITE, DARKGREY);
 	InterfaceArea gamelistTitle = InterfaceArea(61, 6, 58, 1, DARKGREY, LIGHTGREY);
@@ -65,19 +69,21 @@ public:
 	InterfaceArea commandArea = InterfaceArea(1, 28, 118, 1, BLACK, WHITE);
 	Interface() {
 		ConsoleSetColor(ConsoleColor::WHITE, ConsoleColor::BLACK);
-		ConsoleClear();
-		messagesTitle.Clear();
-		messages.Clear();
-		gamelist.Clear();
-		commandArea.Clear();
-		gamelistTitle.Clear();
 		messagesTitle.SetText("Console:");
+		statusTitle.SetText("- Status -");
+		PrintScreen();
 	}
 	void ResetCursor() {
 		ConsoleXY(commandArea.AREA_START_X + 1, commandArea.AREA_START_Y + 1);
 		ConsoleSetColor(commandArea.AREA_COLOR_CHAR, commandArea.AREA_COLOR_BACK);
 	}
 	void UpdateClient(const Player* player) {
+		statusType.SetText(PROGRAMTYPE_STRINGS[programtype].c_str());
+		statusType.Clear();
+		statusConnection.SetText(PLAYER_STATES_STRINGS[player->currentState].c_str());
+		statusConnection.Clear();
+		statusGame.SetText(PLAYER_STATES_INGAME_STRINGS[player->currentStateIngame].c_str());
+		statusGame.Clear();
 		switch (player->currentState)
 		{
 		case PLAYER_STATES::PLAYER_STATE_CONNECTING:
@@ -95,6 +101,11 @@ public:
 		}
 	}
 	void UpdateServer(const BSS* server) {
+		stringstream ss;
+		statusType.SetText(PROGRAMTYPE_STRINGS[programtype].c_str());
+		statusType.Clear();
+		statusConnection.SetText(SERVER_STATES_STRINGS[server->currentState].c_str());
+		statusConnection.Clear();
 		switch (server->currentState)
 		{
 		case SERVER_STATES::SERVER_STATE_CONNECTING:
@@ -107,6 +118,10 @@ public:
 	}
 	void PrintScreen() {
 		ConsoleClear();
+		statusTitle.Clear();
+		statusType.Clear();
+		statusConnection.Clear();
+		statusGame.Clear();
 		PrintMessages();
 		gamelist.Clear();
 		commandArea.Clear();
@@ -114,24 +129,6 @@ public:
 		gamelistTitle.Clear();
 		commandArea.SetText(">", false);
 		ResetCursor();
-		//ConsoleSetColor(ConsoleColor::WHITE, ConsoleColor::DARKRED);
-		//ConsoleXY(0, 0);
-		//std::cout << "State: " << gameState;
-
-		//ConsoleXY(40, 2);
-		//std::cout << "Next turns: " << "Player 1, Player 2, Player 3";
-
-		//ConsoleXY(55, 3);
-		//std::cout << "Turn: " << currentPlayer;
-
-		//// WE'LL HAVE TO CALCULATE THE SIZE OF THE PLAYER NAME AND POSITION IT ACCORDINGLY
-		//ConsoleXY(105, 0);
-		//std::cout << "50 | " << " Player 1";
-		//ConsoleXY(105, 1);
-		//std::cout << "47 | " << " Player 2";
-		//ConsoleXY(105, 2);
-		//std::cout << "83 | " << " Player 3";
-
 	}
 
 	void PrintGamelist(const vector<GameSessionSend> games) {
@@ -159,18 +156,7 @@ public:
 		ResetCursor();
 	}
 
-	void SetGameState(std::string _gameState) {
-		gameState = _gameState;
-	}
-	void SetCurrentPlayerTurn(std::string _currentPlayer) {
-		currentPlayer = _currentPlayer;
-	}
-	void SetNextTurn(std::string _names[]) {
-
-	}
-	void SetScore(std::string _score[]) {
-	}
-	void SetConnectedPlayers(std::string _connectedPlayers[]) {
+	void PrintHand(const vector<Card> cards) {
 
 	}
 
@@ -202,6 +188,10 @@ public:
 				tempmessages.push_back(make_tuple(color, stringstream.str()));
 				stringstream.str("");
 				j = 0;
+				if (tempchar != '\n') {
+					stringstream << newMessage.at(i);
+					j++;
+				}
 			}
 			else {
 				stringstream << newMessage.at(i);
@@ -277,9 +267,5 @@ public:
 	}
 
 private:
-	std::string gameState, currentPlayer;
-	std::string names[6]; // CHANGE TO VECTORS
-	std::string score[6]; // CHANGE TO VECTORS
-	std::string connectedPlayers[6]; // CHANGE TO VECTORS
 	vector<tuple<ConsoleColor, string>> consoleMessages;
 };

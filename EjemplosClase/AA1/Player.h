@@ -70,6 +70,7 @@ struct Player {
 	Player() : MAX_PLAYERS(MAXPLAYERS) {
         TcpSocket * socket = new TcpSocket();
         Socket::Status status;
+        UpdateClient(this);
         while (true) {
             AddMessage("Enter server ip:");
             ip = GetInput_String();
@@ -88,15 +89,19 @@ struct Player {
             else {
                 AddMessage("Connection established with server");
                 currentState = PLAYER_STATES::PLAYER_STATE_BROWSING;
+                UpdateClient(this);
                 if (!Browse(socket))
                     return;
                 currentState = PLAYER_STATES::PLAYER_STATE_LOADING;
+                UpdateClient(this);
                 if (!Load(socket))
                     return;
                 currentState = PLAYER_STATES::PLAYER_STATE_SETUP;
+                UpdateClient(this);
                 if (!Setup())
                     return;
                 currentState = PLAYER_STATES::PLAYER_STATE_INGAME;
+                UpdateClient(this);
                 break;
             }
         }

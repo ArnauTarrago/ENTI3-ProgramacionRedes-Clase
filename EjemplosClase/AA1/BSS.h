@@ -57,6 +57,7 @@ struct BSS {
 	TcpListener dispatcher;
     SocketSelector selector;
 	BSS() : MAX_PLAYERS_MIN(MAXPLAYERS) {
+        UpdateServer(this);
         while (true) {
             AddMessage("Enter server port");
             port = GetInput_Int();
@@ -86,8 +87,9 @@ struct BSS {
         //    games.push_back(tempGame);
         //}
 
-        selector.add(dispatcher);
         currentState = SERVER_STATES::SERVER_STATE_MANAGING;
+        UpdateServer(this);
+        selector.add(dispatcher);
 
         while (true) {
             if (selector.wait()) {
