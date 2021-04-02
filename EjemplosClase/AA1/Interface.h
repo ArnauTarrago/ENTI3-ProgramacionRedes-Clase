@@ -199,10 +199,40 @@ public:
 				playersP8.SetText(("P8:" + to_string(player->hands[8]->points)).c_str());
 			}
 			playersTitle.SetText(("Players:  Turn:P" + to_string(player->hands[player->PlayerID]->currentTurn)).c_str());
+			playersTitle.Clear();
+			playersP0.Clear();
+			playersP1.Clear();
+			playersP2.Clear();
+			playersP3.Clear();
+			playersP4.Clear();
+			playersP5.Clear();
+			playersP6.Clear();
+			playersP7.Clear();
+			playersP8.Clear();
 			//for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
 			//{
 			//	cout << Card::ToString(static_cast<Card::CATEGORY>(i)) << ": " << categories[static_cast<Card::CATEGORY>(i)] << ", ";
 			//}
+			categoriesTitle.Clear();
+			categories.Clear();
+			ConsoleSetColor(categories.AREA_COLOR_CHAR, categories.AREA_COLOR_BACK);
+			ConsoleXY(categories.AREA_START_X, categories.AREA_START_Y);
+			cout << Card::ToString(Card::ARABE) << ":    " << to_string(player->hands[player->PlayerID]->categories[Card::ARABE]);
+			ConsoleXY(categories.AREA_START_X + 20, categories.AREA_START_Y);
+			cout << Card::ToString(Card::BANTU) << ":    " << to_string(player->hands[player->PlayerID]->categories[Card::BANTU]);
+			ConsoleXY(categories.AREA_START_X + 40, categories.AREA_START_Y);
+			cout << Card::ToString(Card::CHINA) << ":    " << to_string(player->hands[player->PlayerID]->categories[Card::CHINA]);
+
+			ConsoleXY(categories.AREA_START_X, categories.AREA_START_Y+1);
+			cout << Card::ToString(Card::ESQUIMAL) << ": " << to_string(player->hands[player->PlayerID]->categories[Card::ESQUIMAL]);
+			ConsoleXY(categories.AREA_START_X + 20, categories.AREA_START_Y+1);
+			cout << Card::ToString(Card::INDIA) << ":    " << to_string(player->hands[player->PlayerID]->categories[Card::INDIA]);
+
+			ConsoleXY(categories.AREA_START_X, categories.AREA_START_Y+2);
+			cout << Card::ToString(Card::MEXICANA) << ": " << to_string(player->hands[player->PlayerID]->categories[Card::MEXICANA]);
+			ConsoleXY(categories.AREA_START_X + 20, categories.AREA_START_Y+2);
+			cout << Card::ToString(Card::TIROLESA) << ": " << to_string(player->hands[player->PlayerID]->categories[Card::TIROLESA]);
+
 			break;
 		default:
 			break;
@@ -288,7 +318,7 @@ public:
 	}
 
 	void PrintHand(const map<Card, bool> cards) {
-		Card::CATEGORY lastCat = Card::CATEGORY::CATEGORY_COUNT;
+		gamelist.Clear();
 		ConsoleSetColor(gamelist.AREA_COLOR_CHAR, gamelist.AREA_COLOR_BACK);
 		int cardCount = 0;
 		for (map<Card, bool>::const_iterator it = cards.begin(); it != cards.end(); it++)
