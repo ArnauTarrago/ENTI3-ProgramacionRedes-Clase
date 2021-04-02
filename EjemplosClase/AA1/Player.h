@@ -339,31 +339,18 @@ struct Player {
 		
 		while (true) 
 		{
+			if (CheckIfGameOverConditionsApply())
+			{
+				DoGameOver();
+				break;
+			}
+
 			if (hands[PlayerID]->currentTurn == 0)
 			{
 				// CHEATING CONTROL
 			}
 
-
-			if (GetNumberOfActivePlayers() <= 2 || !AreThereAnyCardsLeft())
-			{
-				int auxPoints = 0;
-				int playerWinnerID = -1;
-
-				for (size_t i = 0; i < players.size(); i++)
-				{
-					if (hands[i]->points > auxPoints)
-					{
-						auxPoints = hands[i]->points;
-						playerWinnerID = i;
-					}
-				}
-				if(playerWinnerID == -1) stringstream << "All of you lose! Congratulations!";
-				else stringstream << "Game Over! The winner is: 'Player " << playerWinnerID << "'!";				
-				AddMessage(stringstream.str());
-				stringstream.str("");
-				break;
-			}
+			
 
 			while (hands[PlayerID]->currentTurn == PlayerID)
 			{
@@ -381,7 +368,7 @@ struct Player {
 				playerSelected < 0 ? playerSelected = 0 : playerSelected = playerSelected;
 				if (playerSelected == PlayerID)
 				{
-					AddMessage("You can't ask yourself!");
+					AddMessage("You can't ask yourself!", RED);
 					break;
 				}
 
@@ -430,7 +417,6 @@ struct Player {
 
 					for (size_t i = 0; i < players.size(); i++)
 					{				
-
 						do 
 						{
 							hands[i]->currentTurn++;
@@ -438,8 +424,14 @@ struct Player {
 						} while (!hands[hands[i]->currentTurn]->isActive);
 					}
 					stringstream << "It's the turn of " << hands[PlayerID]->currentTurn;
-					AddMessage(stringstream.str());
+					AddMessage(stringstream.str(), GREEN);
 					stringstream.str("");
+					UpdateClient(this);
+				}
+
+				if (CheckIfGameOverConditionsApply())
+				{
+					break;
 				}
 			}
 			/*AddMessage("Would you like to chat with someone? Type their number:");
@@ -465,6 +457,32 @@ struct Player {
 			if (hands[i]->numberOfCards > 0) return true;
 		}
 		return false;
+	}
+
+	void DoGameOver()
+	{
+		ostringstream stringstream;
+
+		int auxPoints = 0;
+		int playerWinnerID = -1;
+
+		for (size_t i = 0; i < players.size(); i++)
+		{
+			if (hands[i]->points > auxPoints)
+			{
+				auxPoints = hands[i]->points;
+				playerWinnerID = i;
+			}
+		}
+		if (playerWinnerID == -1) stringstream << "All of you lose! Congratulations!";
+		else stringstream << "Game Over! The winner is: 'Player " << playerWinnerID << "'!";
+		AddMessage(stringstream.str(), RED);
+		stringstream.str("");
+	}
+
+	bool CheckIfGameOverConditionsApply()
+	{		
+		return ( GetNumberOfActivePlayers() <= 2 || !AreThereAnyCardsLeft() );
 	}
 };
 
