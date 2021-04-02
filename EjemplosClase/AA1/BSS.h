@@ -109,6 +109,7 @@ struct BSS {
                             AddConnection(temp, false);
                         }
                     }
+                    UpdateServer(this);
                 }
                 else {
                     for (list<MessageManager*>::iterator it = players.begin(); it != players.end(); it++)
@@ -145,8 +146,6 @@ struct BSS {
                                         waitingplayers.remove((*it));
                                         (*it)->send_ok();
                                     }
-                                    vector<GameSessionSend> tempgames = ParseGames();
-                                    PrintGamelist(tempgames);
                                 }
                                 else {
                                     bool notjoined = true;
@@ -181,8 +180,6 @@ struct BSS {
 
                                         }
                                     }
-                                    vector<GameSessionSend> tempgames = ParseGames();
-                                    PrintGamelist(tempgames);
                                 }
                             }
                             else {
@@ -204,6 +201,7 @@ struct BSS {
                                 delete (temp)->peer.socket;
                                 delete temp;
                             }
+                            UpdateServer(this);
                             break;
                         }
                     }
@@ -212,10 +210,10 @@ struct BSS {
         }
         
 	}
-    vector<GameSessionSend> ParseGames() {
+    const vector<GameSessionSend> ParseGames() {
         vector<GameSessionSend> tempgames;
         tempgames.reserve(games.size());
-        for (list<GameSession*>::iterator it = games.begin(); it != games.end(); it++) {
+        for (list<GameSession*>::const_iterator it = games.begin(); it != games.end(); it++) {
             tempgames.push_back(make_tuple((*it)->NAME, (*it)->players.size(), (*it)->MAX_PLAYERS, !(*it)->PASSWORD.empty()));
         }
         return tempgames;
