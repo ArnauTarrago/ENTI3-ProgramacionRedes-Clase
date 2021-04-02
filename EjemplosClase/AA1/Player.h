@@ -102,6 +102,8 @@ struct Player {
                     return;
                 currentState = PLAYER_STATES::PLAYER_STATE_INGAME;
                 UpdateClient(this);
+				if (!Play())
+					return;
                 break;
             }
         }
@@ -318,6 +320,8 @@ struct Player {
         for (size_t i = 0; i < MAX_PLAYERS; i++)
         {
             hands[i] = new Hand();
+			hands[i]->isActive = true;
+			hands[i]->currentTurn = 0;
         }
         for (size_t i = 0; i < deck.deck.size(); i++)
         {
@@ -328,8 +332,25 @@ struct Player {
         return true;
     }
 
-	void Play() {
+	bool Play() {
+		string auxString = "";
+		ostringstream stringstream;
+		
 
+		while (true) // add exit condition
+		{
+			while (hands[PlayerID]->currentTurn == PlayerID)
+			{
+				AddMessage("Which family would you like to choose?");
+				for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
+				{
+					stringstream << " - " << Card::ToString(static_cast<Card::CATEGORY>(i));
+					AddMessage(stringstream.str());
+					
+				}
+			}
+		}
+		
 	}
 };
 

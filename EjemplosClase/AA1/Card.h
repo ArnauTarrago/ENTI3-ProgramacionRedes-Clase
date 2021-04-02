@@ -113,6 +113,8 @@ struct Deck {
 	}
 };
 struct Hand {
+	bool isActive;
+	int currentTurn;
 	map<int, int> categories;
 	map<Card, bool> hand;
 	Hand() {
