@@ -198,6 +198,7 @@ public:
 			if (player->hands.size() > 8) {
 				playersP8.SetText(("P8:" + to_string(player->hands[8]->points)).c_str());
 			}
+			playersTitle.SetText(("Players:  Turn:P" + to_string(player->hands[player->PlayerID]->currentTurn)).c_str());
 			//for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
 			//{
 			//	cout << Card::ToString(static_cast<Card::CATEGORY>(i)) << ": " << categories[static_cast<Card::CATEGORY>(i)] << ", ";
@@ -382,7 +383,7 @@ public:
 		cin >> temp;
 		if (registerLine) {
 			AddMessage(temp);
-			PrintScreen();
+			PrintMessages();
 		}
 		ResetCursor();
 		return temp;
@@ -396,7 +397,7 @@ public:
 			stringstream ss;
 			ss << temp;
 			AddMessage(ss.str());
-			PrintScreen();
+			PrintMessages();
 		}
 		ResetCursor();
 		return temp;
@@ -410,7 +411,7 @@ public:
 			stringstream ss;
 			ss << temp;
 			AddMessage(ss.str());
-			PrintScreen();
+			PrintMessages();
 		}
 		ResetCursor();
 		return temp;
