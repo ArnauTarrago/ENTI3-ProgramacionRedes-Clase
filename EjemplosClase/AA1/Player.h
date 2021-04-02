@@ -375,6 +375,7 @@ struct Player {
 				AddMessage(stringstream.str());
 				stringstream.str("");
 				playerSelected = GetInput_Int();
+				UpdateClient(this);
 
 				playerSelected >= players.size() ? playerSelected = players.size() - 1 : playerSelected = playerSelected;
 				playerSelected < 0 ? playerSelected = 0 : playerSelected = playerSelected;
@@ -393,6 +394,7 @@ struct Player {
 				AddMessage(stringstream.str());
 				stringstream.str("");
 				categorySelected = GetInput_Int();
+				UpdateClient(this);
 				categorySelected >= Card::CATEGORY_COUNT ? categorySelected = Card::CATEGORY_COUNT - 1 : categorySelected = categorySelected;
 				categorySelected < 0 ? categorySelected = 0 : categorySelected = categorySelected;				
 
@@ -405,6 +407,7 @@ struct Player {
 				AddMessage(stringstream.str());
 				stringstream.str("");
 				numberSelected = GetInput_Int();
+				UpdateClient(this);
 				numberSelected >= Card::NUMBER_COUNT ? numberSelected = Card::NUMBER_COUNT - 1 : numberSelected = numberSelected;
 				numberSelected < 0 ? numberSelected = 0 : numberSelected = numberSelected;
 				
