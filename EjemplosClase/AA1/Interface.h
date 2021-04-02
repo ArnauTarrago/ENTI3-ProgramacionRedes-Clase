@@ -383,7 +383,7 @@ public:
 		cin >> temp;
 		if (registerLine) {
 			AddMessage(temp);
-			PrintMessages();
+			PrintScreen();
 		}
 		ResetCursor();
 		return temp;
@@ -397,7 +397,7 @@ public:
 			stringstream ss;
 			ss << temp;
 			AddMessage(ss.str());
-			PrintMessages();
+			PrintScreen();
 		}
 		ResetCursor();
 		return temp;
@@ -411,7 +411,7 @@ public:
 			stringstream ss;
 			ss << temp;
 			AddMessage(ss.str());
-			PrintMessages();
+			PrintScreen();
 		}
 		ResetCursor();
 		return temp;
