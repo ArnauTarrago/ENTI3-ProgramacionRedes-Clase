@@ -127,8 +127,9 @@ struct Hand {
 		return hand[_card];
 	}
 	void add(Card _card) {
-		categories[_card.CAT]++;
+		categories[_card.CAT]++;		
 		hand[_card] = true;
+		checkIfCategoryHasBeenCompleted();
 	}
 	void remove(Card _card) {
 		categories[_card.CAT]--;
@@ -147,6 +148,11 @@ struct Hand {
 				cout << Card::ToString(it->first) << endl;
 		}
 	}
+	void checkIfCategoryHasBeenCompleted()
+	{
+
+	}
+
 	int points(){
 		int point = 0;
 		for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
