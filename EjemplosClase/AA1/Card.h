@@ -52,7 +52,7 @@ struct Card {
 	Card(CATEGORY _cat, NUMBER _num) : CAT(_cat), NUM(_num), val(CAT* CATEGORY_COUNT + NUM) {}
 	Card(int _cat, int _num) : CAT(static_cast<CATEGORY>(_cat)), NUM(static_cast<NUMBER>(_num)), val(CAT* CATEGORY_COUNT + NUM) {}
 	inline static const string ToString(Card c) {
-		return " - (" + to_string(c.val) + ")	:" + ToString(c.CAT) + "(" + to_string(c.CAT) + "), " + ToString(c.NUM) + "(" + to_string(c.NUM) + ")";
+		return " - (" + to_string(c.val) + ")	:" + ToString(c.CAT) + "(" + to_string(c.CAT) + "),		" + ToString(c.NUM) + "(" + to_string(c.NUM) + ")";
 	}
 
 	bool operator()(Card* a, Card* b) {

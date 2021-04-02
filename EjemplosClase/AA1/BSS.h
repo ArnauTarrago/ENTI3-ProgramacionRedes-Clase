@@ -212,10 +212,10 @@ struct BSS {
         }
         
 	}
-    vector<GameSessionSend> ParseGames() {
+    const vector<GameSessionSend> ParseGames() {
         vector<GameSessionSend> tempgames;
         tempgames.reserve(games.size());
-        for (list<GameSession*>::iterator it = games.begin(); it != games.end(); it++) {
+        for (list<GameSession*>::const_iterator it = games.begin(); it != games.end(); it++) {
             tempgames.push_back(make_tuple((*it)->NAME, (*it)->players.size(), (*it)->MAX_PLAYERS, !(*it)->PASSWORD.empty()));
         }
         return tempgames;

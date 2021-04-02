@@ -95,6 +95,9 @@ public:
 		case PLAYER_STATES::PLAYER_STATE_SETUP:
 			break;
 		case PLAYER_STATES::PLAYER_STATE_INGAME:
+			gamelistTitle.SetText("Current cards:");
+			gamelistTitle.Clear();
+			PrintHand(player->hands.at(player->PlayerID)->hand);
 			break;
 		default:
 			break;
@@ -138,6 +141,8 @@ public:
 		ConsoleSetColor(gamelist.AREA_COLOR_CHAR, gamelist.AREA_COLOR_BACK);
 		for (size_t i = 0; i < games.size(); i++)
 		{
+			if (i > gamelist.AREA_HEIGHT)
+				break;
 			ConsoleXY(gamelist.AREA_START_X, gamelist.AREA_START_Y + i);
 			cout << ' ' << get<0>(games[i]);
 			ConsoleXY(gamelist.AREA_START_X + gamelist.AREA_WIDTH - 10, gamelist.AREA_START_Y + i);
@@ -156,8 +161,28 @@ public:
 		ResetCursor();
 	}
 
-	void PrintHand(const vector<Card> cards) {
-
+	void PrintHand(const map<Card, bool> cards) {
+		Card::CATEGORY lastCat = Card::CATEGORY::CATEGORY_COUNT;
+		ConsoleSetColor(gamelist.AREA_COLOR_CHAR, gamelist.AREA_COLOR_BACK);
+		int cardCount = 0;
+		for (map<Card, bool>::const_iterator it = cards.begin(); it != cards.end(); it++)
+		{
+			if (it->second)
+				cardCount++;
+		}
+		int i = 0;
+		for (map<Card, bool>::const_iterator it = cards.begin(); it != cards.end(); it++)
+		{
+			ConsoleXY(gamelist.AREA_START_X, gamelist.AREA_START_Y + i);
+			if (i > gamelist.AREA_HEIGHT - 1) {
+				cout << " ... (" << cardCount - i + 1 << ")";
+				break;
+			}
+			if (it->second) {
+				cout << Card::ToString(it->first);
+				i++;
+			}
+		}
 	}
 
 	void PrintMessages() {
