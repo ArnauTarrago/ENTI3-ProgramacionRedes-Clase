@@ -11,7 +11,7 @@ public:
 		const short int AREA_START_Y = 0;
 		const short int AREA_WIDTH = 0;
 		const short int AREA_HEIGHT = 0;
-		const ConsoleColor AREA_COLOR_CHAR = LIGHTGREY;
+		ConsoleColor AREA_COLOR_CHAR = LIGHTGREY;
 		const ConsoleColor AREA_COLOR_BACK = BLACK;
 		string innerText;
 		InterfaceArea(
@@ -62,22 +62,41 @@ public:
 	InterfaceArea statusType = InterfaceArea(1, 2, 10, 1, WHITE, DARKGREY);
 	InterfaceArea statusConnection = InterfaceArea(1, 3, 10, 1, WHITE, DARKGREY);
 	InterfaceArea statusGame = InterfaceArea(1, 4, 10, 1, WHITE, DARKGREY);
+
+
+	InterfaceArea playersTitle = InterfaceArea(12, 1, 30, 1, DARKGREY, LIGHTGREY);
+	InterfaceArea playersP0 = InterfaceArea(12, 2, 10, 1, WHITE, DARKGREY);
+	InterfaceArea playersP1 = InterfaceArea(12, 3, 10, 1, WHITE, DARKGREY);
+	InterfaceArea playersP2 = InterfaceArea(12, 4, 10, 1, WHITE, DARKGREY);
+	InterfaceArea playersP3 = InterfaceArea(22, 2, 10, 1, WHITE, DARKGREY);
+	InterfaceArea playersP4 = InterfaceArea(22, 3, 10, 1, WHITE, DARKGREY);
+	InterfaceArea playersP5 = InterfaceArea(22, 4, 10, 1, WHITE, DARKGREY);
+	InterfaceArea playersP6 = InterfaceArea(32, 2, 10, 1, WHITE, DARKGREY);
+	InterfaceArea playersP7 = InterfaceArea(32, 3, 10, 1, WHITE, DARKGREY);
+	InterfaceArea playersP8 = InterfaceArea(32, 4, 10, 1, WHITE, DARKGREY);
+
+	InterfaceArea categoriesTitle = InterfaceArea(61, 1, 58, 1, DARKGREY, LIGHTGREY);
+	InterfaceArea categories = InterfaceArea(61, 2, 58, 3, WHITE, DARKGREY);
+
 	InterfaceArea messagesTitle = InterfaceArea(1, 6, 58, 1, DARKGREY, LIGHTGREY);
 	InterfaceArea messages = InterfaceArea(1, 7, 58, 20, WHITE, DARKGREY);
+
 	InterfaceArea gamelistTitle = InterfaceArea(61, 6, 58, 1, DARKGREY, LIGHTGREY);
 	InterfaceArea gamelist = InterfaceArea(61, 7, 58, 20, WHITE, DARKGREY);
+
 	InterfaceArea commandArea = InterfaceArea(1, 28, 118, 1, BLACK, WHITE);
 	Interface() {
 		ConsoleSetColor(ConsoleColor::WHITE, ConsoleColor::BLACK);
 		messagesTitle.SetText("Console:");
 		statusTitle.SetText("- Status -");
+		playersTitle.SetText("Players:");
 		PrintScreen();
 	}
 	void ResetCursor() {
 		ConsoleXY(commandArea.AREA_START_X + 1, commandArea.AREA_START_Y + 1);
 		ConsoleSetColor(commandArea.AREA_COLOR_CHAR, commandArea.AREA_COLOR_BACK);
 	}
-	void UpdateClient(const Player* player) {
+	void UpdateClient(Player* player) {
 		statusType.SetText(PROGRAMTYPE_STRINGS[programtype].c_str());
 		statusType.Clear();
 		statusConnection.SetText(PLAYER_STATES_STRINGS[player->currentState].c_str());
@@ -93,17 +112,102 @@ public:
 		case PLAYER_STATES::PLAYER_STATE_LOADING:
 			break;
 		case PLAYER_STATES::PLAYER_STATE_SETUP:
+			playersTitle.SetText("Players");
+			switch (player->PlayerID)
+			{
+			case 1:
+				playersP1.AREA_COLOR_CHAR = GREEN;
+				playersP1.SetText("P1:");
+				break;
+			case 2:
+				playersP2.AREA_COLOR_CHAR = GREEN;
+				playersP2.SetText("P2:");
+				break;
+			case 3:
+				playersP3.AREA_COLOR_CHAR = GREEN;
+				playersP3.SetText("P3:");
+				break;
+			case 4:
+				playersP4.AREA_COLOR_CHAR = GREEN;
+				playersP4.SetText("P4:");
+				break;
+			case 5:
+				playersP5.AREA_COLOR_CHAR = GREEN;
+				playersP5.SetText("P5:");
+				break;
+			case 6:
+				playersP6.AREA_COLOR_CHAR = GREEN;
+				playersP6.SetText("P6:");
+				break;
+			case 7:
+				playersP7.AREA_COLOR_CHAR = GREEN;
+				playersP7.SetText("P7:");
+				break;
+			case 8:
+				playersP8.AREA_COLOR_CHAR = GREEN;
+				playersP8.SetText("P8:");
+				break;
+			default:
+				playersP0.AREA_COLOR_CHAR = GREEN;
+				playersP0.SetText("P0:");
+				break;
+			}
+			playersTitle.Clear();
+			playersP0.Clear();
+			playersP1.Clear();
+			playersP2.Clear();
+			playersP3.Clear();
+			playersP4.Clear();
+			playersP5.Clear();
+			playersP6.Clear();
+			playersP7.Clear();
+			playersP8.Clear();
+			categoriesTitle.SetText("Category card count:");
+			categoriesTitle.Clear();
+			categories.Clear();
 			break;
 		case PLAYER_STATES::PLAYER_STATE_INGAME:
 			gamelistTitle.SetText("Current cards:");
 			gamelistTitle.Clear();
 			PrintHand(player->hands.at(player->PlayerID)->hand);
+
+			if (player->hands.size() > 0) {
+				playersP0.SetText(("P0:" + to_string(player->hands[0]->points())).c_str());
+			}
+			if (player->hands.size() > 1) {
+				playersP1.SetText(("P1:" + to_string(player->hands[1]->points())).c_str());
+			}
+			if (player->hands.size() > 2) {
+				playersP2.SetText(("P2:" + to_string(player->hands[2]->points())).c_str());
+			}
+			if (player->hands.size() > 3) {
+				playersP3.SetText(("P3:" + to_string(player->hands[3]->points())).c_str());
+			}
+			if (player->hands.size() > 4) {
+				playersP4.SetText(("P4:" + to_string(player->hands[4]->points())).c_str());
+			}
+			if (player->hands.size() > 5) {
+				playersP5.SetText(("P5:" + to_string(player->hands[5]->points())).c_str());
+			}
+			if (player->hands.size() > 6) {
+				playersP6.SetText(("P6:" + to_string(player->hands[6]->points())).c_str());
+			}
+			if (player->hands.size() > 7) {
+				playersP7.SetText(("P7:" + to_string(player->hands[7]->points())).c_str());
+			}
+			if (player->hands.size() > 8) {
+				playersP8.SetText(("P8:" + to_string(player->hands[8]->points())).c_str());
+			}
+			//for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
+			//{
+			//	cout << Card::ToString(static_cast<Card::CATEGORY>(i)) << ": " << categories[static_cast<Card::CATEGORY>(i)] << ", ";
+			//}
 			break;
 		default:
 			break;
 		}
 	}
-	void UpdateServer(const BSS* server) {
+	void UpdateServer(BSS* server) {
 		stringstream ss;
 		statusType.SetText(PROGRAMTYPE_STRINGS[programtype].c_str());
 		statusType.Clear();
@@ -114,6 +218,22 @@ public:
 		case SERVER_STATES::SERVER_STATE_CONNECTING:
 			break;
 		case SERVER_STATES::SERVER_STATE_MANAGING:
+			playersTitle.SetText("Players");
+			playersP0.SetText("Connected:");
+			playersP1.SetText("Browsing:");
+			playersP3.SetText(to_string(server->players.size()).c_str());
+			playersP4.SetText(to_string(server->waitingplayers.size()).c_str());
+			playersTitle.Clear();
+			playersP0.Clear();
+			playersP1.Clear();
+			playersP2.Clear();
+			playersP3.Clear();
+			playersP4.Clear();
+			playersP5.Clear();
+			playersP6.Clear();
+			playersP7.Clear();
+			playersP8.Clear();
+			PrintGamelist(server->ParseGames());
 			break;
 		default:
 			break;
@@ -121,16 +241,21 @@ public:
 	}
 	void PrintScreen() {
 		ConsoleClear();
+
 		statusTitle.Clear();
 		statusType.Clear();
 		statusConnection.Clear();
 		statusGame.Clear();
-		PrintMessages();
-		gamelist.Clear();
-		commandArea.Clear();
-		messagesTitle.Clear();
+
 		gamelistTitle.Clear();
+		gamelist.Clear();
+
+		messagesTitle.Clear();
+		PrintMessages();
+
+		commandArea.Clear();
 		commandArea.SetText(">", false);
+
 		ResetCursor();
 	}
 

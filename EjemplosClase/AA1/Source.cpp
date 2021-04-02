@@ -55,8 +55,8 @@ struct BSS;
 struct Player;
 void AddMessage(const string message, ConsoleColor color = WHITE, bool print = true);
 void AddConnection(const TcpSocket* temp, bool ok);
-void UpdateServer(const BSS* server);
-void UpdateClient(const Player* player);
+void UpdateServer(BSS* server);
+void UpdateClient(Player* player);
 void PrintGamelist(const vector<GameSessionSend> games);
 string GetInput_String(bool registerLine = true);
 char GetInput_Char(bool registerLine = true);
@@ -77,8 +77,8 @@ Interface ui;
 
 void AddMessage(const string message, ConsoleColor color, bool print) { ui.AddMessage(message, color, print); }
 void AddConnection(const TcpSocket* temp, bool ok) { ui.AddConnection(temp, ok); }
-void UpdateServer(const BSS* server) { ui.UpdateServer(server); }
-void UpdateClient(const Player* player) { ui.UpdateClient(player); }
+void UpdateServer(BSS* server) { ui.UpdateServer(server); }
+void UpdateClient(Player* player) { ui.UpdateClient(player); }
 void PrintGamelist(const vector<GameSessionSend> games) { ui.PrintGamelist(games); }
 string GetInput_String(bool registerLine) { return ui.GetInput_String(registerLine); }
 char GetInput_Char(bool registerLine) { return ui.GetInput_Char(registerLine); }
