@@ -172,31 +172,31 @@ public:
 			PrintHand(player->hands.at(player->PlayerID)->hand);
 
 			if (player->hands.size() > 0) {
-				playersP0.SetText(("P0:" + to_string(player->hands[0]->points())).c_str());
+				playersP0.SetText(("P0:" + to_string(player->hands[0]->points)).c_str());
 			}
 			if (player->hands.size() > 1) {
-				playersP1.SetText(("P1:" + to_string(player->hands[1]->points())).c_str());
+				playersP1.SetText(("P1:" + to_string(player->hands[1]->points)).c_str());
 			}
 			if (player->hands.size() > 2) {
-				playersP2.SetText(("P2:" + to_string(player->hands[2]->points())).c_str());
+				playersP2.SetText(("P2:" + to_string(player->hands[2]->points)).c_str());
 			}
 			if (player->hands.size() > 3) {
-				playersP3.SetText(("P3:" + to_string(player->hands[3]->points())).c_str());
+				playersP3.SetText(("P3:" + to_string(player->hands[3]->points)).c_str());
 			}
 			if (player->hands.size() > 4) {
-				playersP4.SetText(("P4:" + to_string(player->hands[4]->points())).c_str());
+				playersP4.SetText(("P4:" + to_string(player->hands[4]->points)).c_str());
 			}
 			if (player->hands.size() > 5) {
-				playersP5.SetText(("P5:" + to_string(player->hands[5]->points())).c_str());
+				playersP5.SetText(("P5:" + to_string(player->hands[5]->points)).c_str());
 			}
 			if (player->hands.size() > 6) {
-				playersP6.SetText(("P6:" + to_string(player->hands[6]->points())).c_str());
+				playersP6.SetText(("P6:" + to_string(player->hands[6]->points)).c_str());
 			}
 			if (player->hands.size() > 7) {
-				playersP7.SetText(("P7:" + to_string(player->hands[7]->points())).c_str());
+				playersP7.SetText(("P7:" + to_string(player->hands[7]->points)).c_str());
 			}
 			if (player->hands.size() > 8) {
-				playersP8.SetText(("P8:" + to_string(player->hands[8]->points())).c_str());
+				playersP8.SetText(("P8:" + to_string(player->hands[8]->points)).c_str());
 			}
 			//for (size_t i = 0; i < Card::CATEGORY_COUNT; i++)
 			//{
