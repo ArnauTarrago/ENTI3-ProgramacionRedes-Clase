@@ -43,8 +43,20 @@
 
 #include "shared.h"
 #include "ConsoleControl.h"
+enum PROGRAMTYPE { PROGRAMTYPE_NOTSET, PROGRAMTYPE_CLIENT, PROGRAMTYPE_SERVER, PROGRAMTYPE_COUNT };
+const static string PROGRAMTYPE_STRINGS[] = {
+	"NOT SET",
+	"CLIENT",
+	"SERVER",
+	"3",
+};
+PROGRAMTYPE programtype = PROGRAMTYPE::PROGRAMTYPE_NOTSET;
+struct BSS;
+struct Player;
 void AddMessage(const string message, ConsoleColor color = WHITE, bool print = true);
 void AddConnection(const TcpSocket* temp, bool ok);
+void UpdateServer(const BSS* server);
+void UpdateClient(const Player* player);
 void PrintGamelist(const vector<GameSessionSend> games);
 string GetInput_String(bool registerLine = true);
 char GetInput_Char(bool registerLine = true);
@@ -60,18 +72,13 @@ localhost
 
 */
 
-enum PROGRAMTYPE { PROGRAMTYPE_NOTSET, PROGRAMTYPE_CLIENT, PROGRAMTYPE_SERVER, PROGRAMTYPE_COUNT };
-const static string PROGRAMTYPE_STRINGS[] = {
-	"NOT SET",
-	"CLIENT",
-	"SERVER",
-	"3",
-};
-PROGRAMTYPE programtype = PROGRAMTYPE::PROGRAMTYPE_NOTSET;
+
 Interface ui;
 
 void AddMessage(const string message, ConsoleColor color, bool print) { ui.AddMessage(message, color, print); }
 void AddConnection(const TcpSocket* temp, bool ok) { ui.AddConnection(temp, ok); }
+void UpdateServer(const BSS* server) { ui.UpdateServer(server); }
+void UpdateClient(const Player* player) { ui.UpdateClient(player); }
 void PrintGamelist(const vector<GameSessionSend> games) { ui.PrintGamelist(games); }
 string GetInput_String(bool registerLine) { return ui.GetInput_String(registerLine); }
 char GetInput_Char(bool registerLine) { return ui.GetInput_Char(registerLine); }
@@ -79,15 +86,15 @@ int GetInput_Int(bool registerLine) { return ui.GetInput_Int(registerLine); }
 
 int main()
 {
-	ui.SetGameState("Waiting for players");
-	ui.SetCurrentPlayerTurn("Test 1");
+	ui.statusType.SetText(PROGRAMTYPE_STRINGS[programtype].c_str());
 	ui.PrintScreen();
 
-	ui.AddMessage("Are you a client 'c' or server 's'?: ");
+	ui.AddMessage("Are you a client 'c' or server 's'?:");
 	char userType = ui.GetInput_Char();
 
 	sf::TcpSocket* sock_0 = new sf::TcpSocket();
 	bool okConnection = false;
+
 
 	if (userType == 's')
 	{
