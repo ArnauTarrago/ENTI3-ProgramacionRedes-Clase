@@ -45,6 +45,7 @@
 #include "ConsoleControl.h"
 void AddMessage(const string message, ConsoleColor color = WHITE, bool print = true);
 void AddConnection(const TcpSocket* temp, bool ok);
+void PrintGamelist(const vector<GameSessionSend> games);
 string GetInput_String(bool registerLine = true);
 char GetInput_Char(bool registerLine = true);
 int GetInput_Int(bool registerLine = true);
@@ -71,6 +72,7 @@ Interface ui;
 
 void AddMessage(const string message, ConsoleColor color, bool print) { ui.AddMessage(message, color, print); }
 void AddConnection(const TcpSocket* temp, bool ok) { ui.AddConnection(temp, ok); }
+void PrintGamelist(const vector<GameSessionSend> games) { ui.PrintGamelist(games); }
 string GetInput_String(bool registerLine) { return ui.GetInput_String(registerLine); }
 char GetInput_Char(bool registerLine) { return ui.GetInput_Char(registerLine); }
 int GetInput_Int(bool registerLine) { return ui.GetInput_Int(registerLine); }

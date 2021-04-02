@@ -242,7 +242,16 @@ public:
         Packet pack = receive_message();
         int msg = COMUNICATION_MSGS::MSG_NULL;
         if (pack >> msg && msg == COMUNICATION_MSGS::MSG_GAMEQUERY) {
-            if (pack >> msg >> *name >> *password) {
+            string tempName;
+            if (pack >> msg >> tempName >> *password) {
+                stringstream strstr;
+                for (size_t i = 0; i < tempName.size(); i++)
+                {
+                    if (i >= 30)
+                        break;
+                    strstr << tempName[i];
+                }
+                *name = string(strstr.str());
                 if (msg == GAME_QUERY::GAME_JOIN) {
                     *create = false;
                     return true;

@@ -1,4 +1,4 @@
-#include <sstream>
+﻿#include <sstream>
 #include <string>
 #include <iostream>      
 #pragma once
@@ -133,6 +133,32 @@ public:
 		//std::cout << "83 | " << " Player 3";
 
 	}
+
+	void PrintGamelist(const vector<GameSessionSend> games) {
+		gamelist.Clear();
+		gamelistTitle.Clear();
+		gamelistTitle.SetText("Current games:");
+		ConsoleSetColor(gamelist.AREA_COLOR_CHAR, gamelist.AREA_COLOR_BACK);
+		for (size_t i = 0; i < games.size(); i++)
+		{
+			ConsoleXY(gamelist.AREA_START_X, gamelist.AREA_START_Y + i);
+			cout << ' ' << get<0>(games[i]);
+			ConsoleXY(gamelist.AREA_START_X + gamelist.AREA_WIDTH - 10, gamelist.AREA_START_Y + i);
+			cout << "| ";
+			if (get<3>(games[i])) {
+				ConsoleSetColor(RED, gamelist.AREA_COLOR_BACK);
+				cout << 'x';
+			}
+			else {
+				ConsoleSetColor(GREEN, gamelist.AREA_COLOR_BACK);
+				cout << 'o';
+			}
+			ConsoleSetColor(gamelist.AREA_COLOR_CHAR, gamelist.AREA_COLOR_BACK);
+			cout << " | " << get<1>(games[i]) << "/" << get<2>(games[i]);
+		}
+		ResetCursor();
+	}
+
 	void SetGameState(std::string _gameState) {
 		gameState = _gameState;
 	}
@@ -147,6 +173,7 @@ public:
 	void SetConnectedPlayers(std::string _connectedPlayers[]) {
 
 	}
+
 	void PrintMessages() {
 		messages.Clear();
 		ConsoleSetColor(messages.AREA_COLOR_CHAR, messages.AREA_COLOR_BACK);
@@ -248,6 +275,7 @@ public:
 		ResetCursor();
 		return temp;
 	}
+
 private:
 	std::string gameState, currentPlayer;
 	std::string names[6]; // CHANGE TO VECTORS

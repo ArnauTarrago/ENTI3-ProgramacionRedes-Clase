@@ -47,6 +47,7 @@ const static string SERVER_STATES_STRINGS[] = {
 struct BSS {
     SERVER_STATES currentState = SERVER_STATES::SERVER_STATE_CONNECTING;
     const int MAX_PLAYERS_MIN = 3;
+    const int MAX_PLAYERS_MAX = 9;
 	vector<Peer> peerList = vector<Peer>();
 	list<MessageManager*> players = list<MessageManager*>();
 	list<MessageManager*> waitingplayers = list<MessageManager*>();
@@ -135,12 +136,15 @@ struct BSS {
                                     }
                                     if (notcreated) {
                                         maxplayers < MAX_PLAYERS_MIN ? maxplayers = MAX_PLAYERS_MIN : maxplayers = maxplayers;
+                                        maxplayers > MAX_PLAYERS_MAX ? maxplayers = MAX_PLAYERS_MAX : maxplayers = maxplayers;
                                         GameSession* tempGame = new GameSession(name, password, maxplayers);
                                         tempGame->players.push_back((*it));
                                         games.push_back(tempGame);
                                         waitingplayers.remove((*it));
                                         (*it)->send_ok();
                                     }
+                                    vector<GameSessionSend> tempgames = ParseGames();
+                                    PrintGamelist(tempgames);
                                 }
                                 else {
                                     bool notjoined = true;
@@ -175,6 +179,8 @@ struct BSS {
 
                                         }
                                     }
+                                    vector<GameSessionSend> tempgames = ParseGames();
+                                    PrintGamelist(tempgames);
                                 }
                             }
                             else {
@@ -204,13 +210,17 @@ struct BSS {
         }
         
 	}
-
-    bool SendGames(MessageManager* messages) {
+    vector<GameSessionSend> ParseGames() {
         vector<GameSessionSend> tempgames;
         tempgames.reserve(games.size());
         for (list<GameSession*>::iterator it = games.begin(); it != games.end(); it++) {
             tempgames.push_back(make_tuple((*it)->NAME, (*it)->players.size(), (*it)->MAX_PLAYERS, !(*it)->PASSWORD.empty()));
         }
+        return tempgames;
+    }
+    bool SendGames(MessageManager* messages) {
+        vector<GameSessionSend> tempgames = ParseGames();
+        PrintGamelist(tempgames);
         return messages->send_gamelist(&tempgames);
     }
 };

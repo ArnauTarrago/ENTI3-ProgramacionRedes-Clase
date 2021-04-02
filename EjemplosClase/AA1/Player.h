@@ -79,8 +79,7 @@ struct Player {
             if (status != sf::Socket::Done) {
                 AddMessage("Connection not available. Retry? (y/n)", RED);
                 socket->disconnect();
-                char retry;
-                cin >> retry;
+                char retry = GetInput_Char();
                 if (retry == 'Y' || retry == 'y')
                     continue;
                 else
@@ -117,14 +116,6 @@ struct Player {
         if (!ReceiveGames(&message, &games)) {
             return false;
         }
-		for (size_t i = 0; i < games.size(); i++)
-		{
-			string auxHasPassword = "ERROR";
-			if (games[i].HASPASSWORD == 1) auxHasPassword = "Yes";
-			else auxHasPassword = "No";
-
-			cout << "Name: '" << games[i].NAME << "' | Password protected: '" << auxHasPassword << "' | Players: " << games[i].CURRENT_PLAYERS << "/" << games[i].MAX_PLAYERS << endl;
-		}
         
         bool waiting = true;
         while (waiting) {
@@ -138,27 +129,29 @@ struct Player {
 				isCreatingServer = true;
 
 				AddMessage("Introduce the name of the server:");
-				cin >> serverName;
+				serverName = GetInput_String();
 				AddMessage("Is the server password protected? (y/n)");
-				cin >> userResponse;
+				userResponse = GetInput_Char();
 
-				if (userResponse == 'y')
+				if (userResponse == 'y' || userResponse == 'Y')
 				{
 					AddMessage("Introduce the password of the server:");
-					cin >> password;
+                    password = GetInput_String();
 				}
 
 				AddMessage("Introduce the max number of players:");
-				cin >> maxNumPlayers;
+				maxNumPlayers = GetInput_Int();
 
 				if (message.send_gameQuery(isCreatingServer, serverName, password, maxNumPlayers))
 				{
 					if (message.receive_message() >> msg && msg == COMUNICATION_MSGS::MSG_OK)
 					{
+                        AddMessage("Game created successfully", GREEN);
 						waiting = false;
 					}
 					else
 					{
+                        AddMessage("Game not created", RED);
 						if (!ReceiveGames(&message, &games)) return false;
 					}
 				}
@@ -166,29 +159,30 @@ struct Player {
 
 				break;
 			case 'j':
-				char userResponse2;
 
 				isCreatingServer = false;
 				AddMessage("Introduce the name of the server:");
-				cin >> serverName;
+                serverName = GetInput_String();
 
 				AddMessage("Is the server password protected? (y/n)");
-				cin >> userResponse2;
+                userResponse = GetInput_Char();
 
-				if (userResponse2 == 'y')
+				if (userResponse == 'y' || userResponse == 'Y')
 				{
 					AddMessage("Introduce the password of the server:");
-					cin >> password;
+                    password = GetInput_String();
 				}
 				
 				if (message.send_gameQuery(isCreatingServer, serverName, password, maxNumPlayers))
 				{
 					if (message.receive_message() >> msg && msg == COMUNICATION_MSGS::MSG_OK)
 					{
+                        AddMessage("Game joined successfully", GREEN);
 						waiting = false;
 					}
 					else
 					{
+                        AddMessage("Game not joined", RED);
 						if (!ReceiveGames(&message, &games)) return false;							
 					}
 				}
@@ -207,6 +201,7 @@ struct Player {
         if (!messages->receive_gamelist(&_games)) {
             return false;
         }
+        PrintGamelist(_games);
         games->reserve(_games.size());
         for (size_t i = 0; i < _games.size(); i++)
         {
