@@ -418,6 +418,7 @@ struct Player {
 
 					hands[PlayerID]->add(auxCard);
 					hands[playerSelected]->remove(auxCard);
+					UpdateClient(this);
 				}
 				else
 				{
@@ -441,7 +442,7 @@ struct Player {
 			/*AddMessage("Would you like to chat with someone? Type their number:");
 			playerSelected = GetInput_Char();*/
 		}
-		
+		return true;		
 	}
 		
 	int GetNumberOfActivePlayers()
