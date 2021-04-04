@@ -348,9 +348,7 @@ struct Player {
 			if (hands[PlayerID]->currentTurn == 0)
 			{
 				// CHEATING CONTROL
-			}
-
-			
+			}			
 
 			while (hands[PlayerID]->currentTurn == PlayerID)
 			{
@@ -401,32 +399,25 @@ struct Player {
 
 				Card auxCard(categorySelected, numberSelected);
 
-				if (hands[playerSelected]->has(auxCard))
+				//Player sends the card request to the other peers
+				for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
 				{
-					// TODO: Send message to other network players that the player has the card
-					AddMessage("Player has the card.");
+					if (!it->second->send_requestCard(playerSelected, categorySelected, numberSelected)) {
+						// TODO: Control
+					}
+				}
 
-					hands[PlayerID]->add(auxCard);
-					hands[playerSelected]->remove(auxCard);
-					UpdateClient(this);
+				if (DoesPlayerHaveCard(playerSelected, auxCard))
+				{
+					PlayerStealsCard(PlayerID, playerSelected, auxCard);
 				}
 				else
 				{
-					// TODO: Send message to other network players that the player doesn't have the card
-					AddMessage("Player doesn't have the card, passing the turn.");
-
-					for (size_t i = 0; i < players.size(); i++)
-					{				
-						do 
-						{
-							hands[i]->currentTurn++;
-							if (hands[i]->currentTurn >= players.size()) hands[i]->currentTurn = 0;
-						} while (!hands[hands[i]->currentTurn]->isActive);
-					}
-					stringstream << "It's the turn of " << hands[PlayerID]->currentTurn;
-					AddMessage(stringstream.str(), GREEN);
+					stringstream << "Player " << playerSelected << "doesn't have the card " << auxCard.CAT << " " << auxCard.NUM;
+					AddMessage(stringstream.str());
 					stringstream.str("");
 					UpdateClient(this);
+					PassTurn();
 				}
 
 				if (CheckIfGameOverConditionsApply())
@@ -434,10 +425,89 @@ struct Player {
 					break;
 				}
 			}
-			/*AddMessage("Would you like to chat with someone? Type their number:");
-			playerSelected = GetInput_Char();*/
+
+			if (hands[PlayerID]->currentTurn != PlayerID)
+			{
+				if (selector.wait())
+				{
+					for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
+					{
+						sf::TcpSocket& client = *it->first;
+						if (selector.isReady(client)) {
+							if (messages[&client]->receive_requestCard(&playerSelected, &categorySelected, &numberSelected))
+							{
+								int auxPlayerThief = 0;
+								for (map<int, TcpSocket*>::iterator it2 = players.begin(); it2 != players.end(); it2++)
+								{
+									// THIS IS THE LINE THAT DOESN'T WORK
+									if (it2->second->getRemotePort() == client.getRemotePort())
+									{
+										auxPlayerThief = it2->first;
+									}
+								}
+								Card auxCard(categorySelected, numberSelected);
+
+								if (DoesPlayerHaveCard(playerSelected, auxCard))
+								{
+									PlayerStealsCard(auxPlayerThief, playerSelected, auxCard);
+								}
+								else
+								{
+									stringstream << "Player " << playerSelected << "doesn't have the card " << auxCard.CAT << " " << auxCard.NUM;
+									AddMessage(stringstream.str());
+									stringstream.str("");
+									UpdateClient(this);
+									PassTurn();
+								}
+
+								if (CheckIfGameOverConditionsApply())
+								{
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+			
 		}
 		return true;		
+	}
+
+	bool DoesPlayerHaveCard(int player, Card card)
+	{
+		return hands[player]->has(card);
+	}
+
+	void PlayerStealsCard(int playerThief, int playerVictim, Card card)
+	{
+		ostringstream stringstream;
+
+		stringstream << "Player " << playerThief << " has stolen the card " << card.CAT << " " << card.NUM << " from Player " << playerVictim;
+		AddMessage(stringstream.str());
+		stringstream.str("");
+
+		hands[playerThief]->add(card);
+		hands[playerVictim]->remove(card);
+		UpdateClient(this);
+	}
+
+	void PassTurn()
+	{
+		ostringstream stringstream;
+
+		for (size_t i = 0; i < players.size(); i++)
+		{
+			do
+			{
+				hands[i]->currentTurn++;
+				if (hands[i]->currentTurn >= players.size()) hands[i]->currentTurn = 0;
+			} while (!hands[hands[i]->currentTurn]->isActive);
+		}
+		stringstream << "It's the turn of " << hands[PlayerID]->currentTurn;
+		AddMessage(stringstream.str(), GREEN);
+		stringstream.str("");
+		UpdateClient(this);
 	}
 		
 	int GetNumberOfActivePlayers()
