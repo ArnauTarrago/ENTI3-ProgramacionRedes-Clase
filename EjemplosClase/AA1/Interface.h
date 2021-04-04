@@ -289,11 +289,253 @@ public:
 
 		ResetCursor();
 	}
+	void FilterGamelist(vector<GameSessionSend> games, GameSessionFilter* filter, GameSessionOrder* order) {
+		bool filtering = true;
+		while (filtering) {
+			PrintFilters(filter, order);
+			AddMessage("Do you wish to sort 's', filter 'f', or reset 'r' the game list?");
+			char temp = GetInput_Char();
+			PrintGamelist(games, filter, order);
+			if (temp == 'r' || temp == 'R') {
+				AddMessage("Filters and sorting reset");
+				filter = new GameSessionFilter();
+				order = new GameSessionOrder();
+			}
+			else if (temp == 's' || temp == 'S') {
+				AddMessage("Which field do you wish to sort? (0-3)");
+				AddMessage("0: Server name, 1: current players, 2: max players, 3: has password");
+				int tempField = GetInput_Int();
+				PrintGamelist(games, filter, order);
+				AddMessage("Do you want the field to ascend 'a', descend 'd', or none 'n'?");
+				temp = GetInput_Char();
+				PrintGamelist(games, filter, order);
+				ORDER tempOrder = ORDER::NONE;
+				if (temp == 'a' || temp == 'A') {
+					tempOrder = ORDER::ASC;
+				}
+				else if (temp == 'd' || temp == 'D') {
+					tempOrder = ORDER::DESC;
+				}
+				switch (tempField)
+				{
+				case 1:
+					get<1>(*order) = tempOrder;
+						break;
+				case 2:
+					get<2>(*order) = tempOrder;
+						break;
+				case 3:
+					get<3>(*order) = tempOrder;
+						break;
+				default:
+					get<0>(*order) = tempOrder;
+					break;
+				}
+			}
+			else {
+				AddMessage("Which field do you wish to filter? (0-3)");
+				AddMessage("0: Server name, 1: current players, 2: max players, 3: has password");
+				int tempField = GetInput_Int();
+				PrintGamelist(games, filter, order);
+				switch (tempField)
+				{
+				case 1:
+					AddMessage("Do you wish to erease the filter for current players? (y/n)");
+					if (GetInput_Confirmation()) {
+						get<1>(*filter) = nullptr;
+					}
+					else {
+						PrintGamelist(games, filter, order);
+						AddMessage("Which number of current players do you want?");
+						get<1>(*filter) = new int(GetInput_Int());
+					}
+					break;
+				case 2:
+					AddMessage("Do you wish to erease the filter for max players? (y/n)");
+					if (GetInput_Confirmation()) {
+						get<2>(*filter) = nullptr;
+					}
+					else {
+						PrintGamelist(games, filter, order);
+						AddMessage("Which number of max players do you want?");
+						get<2>(*filter) = new int(GetInput_Int());
+					}
+					break;
+				case 3:
+					AddMessage("Do you wish to erease the filter for has password? (y/n)");
+					if (GetInput_Confirmation()) {
+						get<3>(*filter) = nullptr;
+					}
+					else {
+						PrintGamelist(games, filter, order);
+						AddMessage("Do you want the server to have password? (y/n)");
+						get<3>(*filter) = new bool(GetInput_Confirmation());
+					}
+					break;
+				default:
+					AddMessage("Do you wish to erease the filter for server name? (y/n)");
+					if (GetInput_Confirmation()) {
+						get<0>(*filter) = nullptr;
+					}
+					else {
+						PrintGamelist(games, filter, order);
+						AddMessage("Which server name do you want?");
+						get<0>(*filter) = new string(GetInput_String());
+					}
+					break;
+				}
+			}
+			PrintFilters(filter, order);
+			PrintGamelist(games, filter, order);
+			AddMessage("Do you wish to sort or filter the list again? (y/n)");
+			filtering = GetInput_Confirmation();
+			PrintGamelist(games, filter, order);
+		}
+	}
+	void PrintFilters(GameSessionFilter* filter, GameSessionOrder* order) {
+		stringstream ss;
+		if (filter != nullptr) {
+			AddMessage("Current gamelist filters:");
+			{
+				ss.str("");
+				string* temp = get<0>(*filter);
+				ss << "Server Name: ";
+				if (temp != nullptr)
+					ss << temp->c_str();
+				else
+					ss << " - ";
+				AddMessage(ss.str());
+			}
+			{
+				ss.str("");
+				int* temp = get<1>(*filter);
+				ss << "Current players: ";
+				if (temp != nullptr)
+					ss << *temp;
+				else
+					ss << " - ";
+				AddMessage(ss.str());
+			}
+			{
+				ss.str("");
+				int* temp = get<2>(*filter);
+				ss << "Max players: ";
+				if (temp != nullptr)
+					ss << *temp;
+				else
+					ss << " - ";
+				AddMessage(ss.str());
+			}
+			{
+				ss.str("");
+				bool* temp = get<3>(*filter);
+				ss << "Has password: ";
+				if (temp != nullptr)
+					ss << *temp;
+				else
+					ss << " - ";
+				AddMessage(ss.str());
+			}
+		}
+		if (order != nullptr) {
+			AddMessage("Current gamelist sort:");
+			{
+				ss.str("");
+				ss << "Server Name: " << ORDER_STRINGS[get<0>(*order)];
+				AddMessage(ss.str());
+			}
+			{
+				ss.str("");
+				ss << "Current players: " << ORDER_STRINGS[get<1>(*order)];
+				AddMessage(ss.str());
+			}
+			{
+				ss.str("");
+				ss << "Max players: " << ORDER_STRINGS[get<2>(*order)];
+				AddMessage(ss.str());
+			}
+			{
+				ss.str("");
+				ss << "Has password: " << ORDER_STRINGS[get<3>(*order)];
+				AddMessage(ss.str());
+			}
+		}
+	}
 
-	void PrintGamelist(const vector<GameSessionSend> games) {
+	void PrintGamelist(vector<GameSessionSend> games, GameSessionFilter* filter = nullptr, GameSessionOrder* order = nullptr) {
 		gamelist.Clear();
 		gamelistTitle.Clear();
 		gamelistTitle.SetText("Current games:");
+		vector<GameSessionSend> gamesTemp;
+		if (filter != nullptr) {
+			if (get<0>(*filter) == nullptr && get<1>(*filter) == nullptr && get<2>(*filter) == nullptr && get<3>(*filter) == nullptr) {
+				gamesTemp = vector<GameSessionSend>(games);
+			}
+			else {
+				if (get<0>(*filter) != nullptr) {
+					for (size_t i = 0; i < games.size(); i++)
+					{
+						if (get<0>(games.at(i)) == *get<0>(*filter))
+							gamesTemp.push_back(games.at(i));
+					}
+				}
+				if (get<1>(*filter) != nullptr) {
+					for (size_t i = 0; i < games.size(); i++)
+					{
+						if (get<1>(games.at(i)) == *get<1>(*filter))
+							gamesTemp.push_back(games.at(i));
+					}
+				}
+				if (get<2>(*filter) != nullptr) {
+					for (size_t i = 0; i < games.size(); i++)
+					{
+						if (get<2>(games.at(i)) == *get<2>(*filter))
+							gamesTemp.push_back(games.at(i));
+					}
+				}
+				if (get<3>(*filter) != nullptr) {
+					for (size_t i = 0; i < games.size(); i++)
+					{
+						if (get<3>(games.at(i)) == *get<3>(*filter))
+							gamesTemp.push_back(games.at(i));
+					}
+				}
+			}
+			games = vector<GameSessionSend>(gamesTemp);
+		}
+		if (order != nullptr) {
+			if (filter == nullptr)
+				gamesTemp = vector<GameSessionSend>(games);
+			ORDER temp = get<3>(*order);
+			if (temp != ORDER::NONE) {
+				if (temp == ORDER::DESC)
+					sort(gamesTemp.begin(), gamesTemp.end(), GameSessionOrder_Sort3Desc);
+				else
+					sort(gamesTemp.begin(), gamesTemp.end(), GameSessionOrder_Sort3Asc);
+			}
+			temp = get<2>(*order);
+			if (temp != ORDER::NONE) {
+				if (temp == ORDER::DESC)
+					sort(gamesTemp.begin(), gamesTemp.end(), GameSessionOrder_Sort2Desc);
+				else
+					sort(gamesTemp.begin(), gamesTemp.end(), GameSessionOrder_Sort2Asc);
+			}
+			temp = get<1>(*order);
+			if (temp != ORDER::NONE) {
+				if (temp == ORDER::DESC)
+					sort(gamesTemp.begin(), gamesTemp.end(), GameSessionOrder_Sort1Desc);
+				else
+					sort(gamesTemp.begin(), gamesTemp.end(), GameSessionOrder_Sort1Asc);
+			}
+			temp = get<0>(*order);
+			if (temp != ORDER::NONE) {
+				if (temp == ORDER::DESC)
+					sort(gamesTemp.begin(), gamesTemp.end(), GameSessionOrder_Sort0Desc);
+				else
+					sort(gamesTemp.begin(), gamesTemp.end(), GameSessionOrder_Sort0Asc);
+			}
+			games = vector<GameSessionSend>(gamesTemp);
+		}
 		ConsoleSetColor(gamelist.AREA_COLOR_CHAR, gamelist.AREA_COLOR_BACK);
 		for (size_t i = 0; i < games.size(); i++)
 		{
@@ -417,6 +659,20 @@ public:
 		}
 		ResetCursor();
 		return temp;
+	}
+	bool GetInput_Confirmation(bool registerLine = true) {
+		commandArea.Clear();
+		commandArea.SetText(">", false);
+		char temp;
+		cin >> temp;
+		if (registerLine) {
+			stringstream ss;
+			ss << temp;
+			AddMessage(ss.str());
+			PrintScreen();
+		}
+		ResetCursor();
+		return temp == 'y' || temp == 'Y';
 	}
 	char GetInput_Char(bool registerLine = true) {
 		commandArea.Clear();

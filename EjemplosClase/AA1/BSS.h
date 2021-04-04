@@ -65,9 +65,7 @@ struct BSS {
             if (status != Socket::Done) {
                 AddMessage("Port not available. Retry? (y/n)", RED);
                 dispatcher.close();
-                char retry;
-                retry = GetInput_Char();
-                if (retry == 'Y' || retry == 'y')
+                if (GetInput_Confirmation())
                     continue;
                 else
                     return;

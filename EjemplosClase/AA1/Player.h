@@ -81,7 +81,7 @@ struct Player {
                 AddMessage("Connection not available. Retry? (y/n)", RED);
                 socket->disconnect();
                 char retry = GetInput_Char();
-                if (retry == 'Y' || retry == 'y')
+                if (GetInput_Confirmation())
                     continue;
                 else
                     return;
@@ -120,6 +120,8 @@ struct Player {
 
         MessageManager message = MessageManager(_socket);
         vector<GameSessionClient> games;
+        GameSessionFilter* filter = new GameSessionFilter();
+        GameSessionOrder* order = new GameSessionOrder();
         if (!ReceiveGames(&message, &games)) {
             return false;
         }
@@ -127,27 +129,30 @@ struct Player {
         bool waiting = true;
         while (waiting) {
 
-            AddMessage("Do you wish to create 'c' a game or join 'j' an existing game?");
+            AddMessage("Do you wish to create 'c' a game or join 'j' an existing game, or filter/sort 'f' the list?");
             userType = GetInput_Char();
+            PrintGamelist(ParseBackGames(&games), filter, order);
 			switch (userType)
 			{
 			case 'c':
-				char userResponse;
 				isCreatingServer = true;
 
 				AddMessage("Introduce the name of the server:");
 				serverName = GetInput_String();
+                PrintGamelist(ParseBackGames(&games), filter, order);
 				AddMessage("Is the server password protected? (y/n)");
-				userResponse = GetInput_Char();
 
-				if (userResponse == 'y' || userResponse == 'Y')
+				if (GetInput_Confirmation())
 				{
+                    PrintGamelist(ParseBackGames(&games), filter, order);
 					AddMessage("Introduce the password of the server:");
                     password = GetInput_String();
+                    PrintGamelist(ParseBackGames(&games), filter, order);
 				}
 
 				AddMessage("Introduce the max number of players:");
 				maxNumPlayers = GetInput_Int();
+                PrintGamelist(ParseBackGames(&games), filter, order);
 
 				if (message.send_gameQuery(isCreatingServer, serverName, password, maxNumPlayers))
 				{
@@ -159,7 +164,7 @@ struct Player {
 					else
 					{
                         AddMessage("Game not created", RED);
-						if (!ReceiveGames(&message, &games)) return false;
+						if (!ReceiveGames(&message, &games, filter, order)) return false;
 					}
 				}
 				else return false;
@@ -170,14 +175,16 @@ struct Player {
 				isCreatingServer = false;
 				AddMessage("Introduce the name of the server:");
                 serverName = GetInput_String();
+                PrintGamelist(ParseBackGames(&games), filter, order);
 
 				AddMessage("Is the server password protected? (y/n)");
-                userResponse = GetInput_Char();
 
-				if (userResponse == 'y' || userResponse == 'Y')
+				if (GetInput_Confirmation())
 				{
+                    PrintGamelist(ParseBackGames(&games), filter, order);
 					AddMessage("Introduce the password of the server:");
                     password = GetInput_String();
+                    PrintGamelist(ParseBackGames(&games), filter, order);
 				}
 				
 				if (message.send_gameQuery(isCreatingServer, serverName, password, maxNumPlayers))
@@ -190,30 +197,40 @@ struct Player {
 					else
 					{
                         AddMessage("Game not joined", RED);
-						if (!ReceiveGames(&message, &games)) return false;							
+						if (!ReceiveGames(&message, &games, filter, order)) return false;
 					}
 				}
 				else return false;
 
 				break;
 			default:
+                FilterGamelist(ParseBackGames(&games), filter, order);
 				break;
 			}
         }
         return true;
     }
 
-    bool ReceiveGames(MessageManager* messages, vector<GameSessionClient>* games) {
+    vector<GameSessionSend> ParseBackGames(const vector<GameSessionClient>* games) {
+        vector<GameSessionSend> tempgames;
+        tempgames.reserve(games->size());
+        for (vector<GameSessionClient>::const_iterator it = games->begin(); it != games->end(); it++) {
+            tempgames.push_back(make_tuple(it->NAME, it->CURRENT_PLAYERS, it->MAX_PLAYERS, it->HASPASSWORD));
+        }
+        return tempgames;
+    }
+
+    bool ReceiveGames(MessageManager* messages, vector<GameSessionClient>* games, GameSessionFilter* filter = nullptr, GameSessionOrder* order = nullptr) {
         vector<GameSessionSend> _games;
         if (!messages->receive_gamelist(&_games)) {
             return false;
         }
-        PrintGamelist(_games);
         games->reserve(_games.size());
         for (size_t i = 0; i < _games.size(); i++)
         {
             games->push_back(GameSessionClient(get<0>(_games.at(i)), get<1>(_games.at(i)), get<2>(_games.at(i)), get<3>(_games.at(i))));
         }
+        PrintGamelist(_games, filter, order);
         return true;
     }
 

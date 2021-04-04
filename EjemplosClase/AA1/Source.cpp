@@ -57,7 +57,9 @@ void AddMessage(const string message, ConsoleColor color = WHITE, bool print = t
 void AddConnection(const TcpSocket* temp, bool ok);
 void UpdateServer(BSS* server);
 void UpdateClient(Player* player);
-void PrintGamelist(const vector<GameSessionSend> games);
+void FilterGamelist(vector<GameSessionSend> games, GameSessionFilter* filter, GameSessionOrder* order);
+void PrintGamelist(const vector<GameSessionSend> games, GameSessionFilter* filter = nullptr, GameSessionOrder* order = nullptr);
+bool GetInput_Confirmation(bool registerLine = true);
 string GetInput_String(bool registerLine = true);
 char GetInput_Char(bool registerLine = true);
 int GetInput_Int(bool registerLine = true);
@@ -79,7 +81,9 @@ void AddMessage(const string message, ConsoleColor color, bool print) { ui.AddMe
 void AddConnection(const TcpSocket* temp, bool ok) { ui.AddConnection(temp, ok); }
 void UpdateServer(BSS* server) { ui.UpdateServer(server); }
 void UpdateClient(Player* player) { ui.UpdateClient(player); }
-void PrintGamelist(const vector<GameSessionSend> games) { ui.PrintGamelist(games); }
+void FilterGamelist(vector<GameSessionSend> games, GameSessionFilter* filter, GameSessionOrder* order) { ui.FilterGamelist(games, filter, order); }
+void PrintGamelist(vector<GameSessionSend> games, GameSessionFilter* filter, GameSessionOrder* order) { ui.PrintGamelist(games, filter, order); }
+bool GetInput_Confirmation(bool registerLine) { return ui.GetInput_Confirmation(registerLine); };
 string GetInput_String(bool registerLine) { return ui.GetInput_String(registerLine); }
 char GetInput_Char(bool registerLine) { return ui.GetInput_Char(registerLine); }
 int GetInput_Int(bool registerLine) { return ui.GetInput_Int(registerLine); }

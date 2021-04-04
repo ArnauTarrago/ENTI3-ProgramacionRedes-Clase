@@ -7,6 +7,23 @@ using namespace std;
 using namespace sf;
 
 #define GameSessionSend std::tuple<string, int, int, bool>
+#define GameSessionFilter std::tuple<string*, int*, int*, bool*>
+enum ORDER{ NONE, ASC, DESC};
+const static string ORDER_STRINGS[] = {
+    "NONE",
+    "ASC",
+    "DESC",
+};
+#define GameSessionOrder std::tuple<ORDER, ORDER, ORDER, ORDER>
+
+bool GameSessionOrder_Sort0Asc(GameSessionSend i, GameSessionSend j) { return (get<0>(i) < get<0>(j)); }
+bool GameSessionOrder_Sort0Desc(GameSessionSend i, GameSessionSend j) { return (get<0>(i) > get<0>(j)); }
+bool GameSessionOrder_Sort1Asc(GameSessionSend i, GameSessionSend j) { return (get<1>(i) < get<1>(j)); }
+bool GameSessionOrder_Sort1Desc(GameSessionSend i, GameSessionSend j) { return (get<1>(i) > get<1>(j)); }
+bool GameSessionOrder_Sort2Asc(GameSessionSend i, GameSessionSend j) { return (get<2>(i) < get<2>(j)); }
+bool GameSessionOrder_Sort2Desc(GameSessionSend i, GameSessionSend j) { return (get<2>(i) > get<2>(j)); }
+bool GameSessionOrder_Sort3Asc(GameSessionSend i, GameSessionSend j) { return (get<3>(i) < get<3>(j)); }
+bool GameSessionOrder_Sort3Desc(GameSessionSend i, GameSessionSend j) { return (get<3>(i) > get<3>(j)); }
 
 struct Peer
 {
