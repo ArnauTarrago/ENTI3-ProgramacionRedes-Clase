@@ -170,11 +170,13 @@ public:
         pack << COMUNICATION_MSGS::MSG_GREET << _Id;
         return send_message(pack);
     }
-    //bool send_seed(int _seed) {
-    //    Packet pack;
-    //    pack << COMUNICATION_MSGS::MSG_SEED << _seed;
-    //    return send_message(pack);
-    //}
+	bool send_requestCard(int playerID, int category, int number)
+	{
+		Packet pack;
+		pack << COMUNICATION_MSGS::MSG_REQUESTCARD << playerID << category << number;
+		return send_message(pack);
+	}
+
 #pragma endregion
 #pragma region RECEPCIONES ESPECIFICAS
     bool receive_peers(vector<Peer>* _peers) {
@@ -282,6 +284,30 @@ public:
         }
         return false;
     }
+	bool receive_requestCard(int * playerID, int * category, int * number) {
+		Packet pack = receive_message();
+		int msg = COMUNICATION_MSGS::MSG_NULL;
+		if (pack >> msg && msg == COMUNICATION_MSGS::MSG_REQUESTCARD) {
+			int auxPlayerID = -1;
+			int auxCategory = -1;
+			int auxNumber = -1;
+
+			if (pack >> auxPlayerID) {
+				*playerID = auxPlayerID;
+				if (pack >> auxCategory)
+				{
+					*category = auxCategory;
+					if (pack >> auxNumber)
+					{
+						*number = auxNumber;
+						return true;
+					}
+				}				
+				
+			}
+		}
+		return false;
+	}
 
 
 
