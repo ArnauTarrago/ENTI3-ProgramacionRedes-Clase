@@ -430,7 +430,7 @@ struct Player {
 				}
 				else
 				{
-					stringstream << "Player " << playerSelected << "doesn't have the card " << auxCard.CAT << " " << auxCard.NUM;
+					stringstream << "Player " << playerSelected << " doesn't have the card " << Card::ToString(auxCard.CAT) << " (" << auxCard.CAT << ") " << Card::ToString(auxCard.NUM) << " (" << auxCard.NUM << ").";
 					AddMessage(stringstream.str());
 					stringstream.str("");
 					UpdateClient(this);
@@ -453,24 +453,15 @@ struct Player {
 						if (selector.isReady(client)) {
 							if (messages[&client]->receive_requestCard(&playerSelected, &categorySelected, &numberSelected))
 							{
-								int auxPlayerThief = 0;
-								for (map<int, TcpSocket*>::iterator it2 = players.begin(); it2 != players.end(); it2++)
-								{
-									// THIS IS THE LINE THAT DOESN'T WORK
-									if (it2->second->getRemotePort() == client.getRemotePort())
-									{
-										auxPlayerThief = it2->first;
-									}
-								}
 								Card auxCard(categorySelected, numberSelected);
 
 								if (DoesPlayerHaveCard(playerSelected, auxCard))
 								{
-									PlayerStealsCard(auxPlayerThief, playerSelected, auxCard);
+									PlayerStealsCard(hands[PlayerID]->currentTurn, playerSelected, auxCard);
 								}
 								else
 								{
-									stringstream << "Player " << playerSelected << "doesn't have the card " << auxCard.CAT << " " << auxCard.NUM;
+									stringstream << "Player " << playerSelected << " doesn't have the card " << Card::ToString(auxCard.CAT) << " (" << auxCard.CAT << ") " << Card::ToString(auxCard.NUM) << " (" << auxCard.NUM << ").";
 									AddMessage(stringstream.str());
 									stringstream.str("");
 									UpdateClient(this);
@@ -500,7 +491,7 @@ struct Player {
 	{
 		ostringstream stringstream;
 
-		stringstream << "Player " << playerThief << " has stolen the card " << card.CAT << " " << card.NUM << " from Player " << playerVictim;
+		stringstream << "Player " << playerThief << " has stolen the card " << Card::ToString(card.CAT) << " (" << card.CAT << ") " << Card::ToString(card.NUM) << " (" << card.NUM << ") from Player "  << playerVictim << ".";
 		AddMessage(stringstream.str());
 		stringstream.str("");
 
