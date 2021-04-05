@@ -56,7 +56,7 @@ const static string PLAYER_STATES_INGAME_STRINGS[] = {
 struct Player {
     PLAYER_STATES currentState = PLAYER_STATES::PLAYER_STATE_CONNECTING;
     PLAYER_STATES_INGAME currentStateIngame = PLAYER_STATES_INGAME::PLAYER_STATE_INGAME_NOTINGAME;
-    const int MAX_PLAYERS;
+	int maxplayers;
     int port;
     int PlayerID;
     int seed;
@@ -65,9 +65,10 @@ struct Player {
     SocketSelector selector;
     Deck deck;
     map<int, TcpSocket*> players;
+    map<TcpSocket*, int> playersIds;
     map<TcpSocket*, MessageManager*> messages;
     map<int, Hand*> hands;
-	Player() : MAX_PLAYERS(MAXPLAYERS) {
+	Player() {
         TcpSocket * socket = new TcpSocket();
         Socket::Status status;
         UpdateClient(this);
@@ -236,6 +237,9 @@ struct Player {
 
     bool Load(TcpSocket* _socket) {
         MessageManager message = MessageManager(_socket);
+		if (!message.receive_gamefull(&maxplayers)) {
+			return false;
+		}
         vector<Peer> peerList = vector<Peer>();
         if (!message.receive_peers(&peerList))
             return false;
@@ -261,7 +265,7 @@ struct Player {
                 }
             }
         }
-        if (messages.size() < MAX_PLAYERS) {
+        if (messages.size() < maxplayers) {
             status = listener.listen(localport);
             if (status != Socket::Done) {
                 AddMessage("Could not open ports to listen for clients");
@@ -269,7 +273,7 @@ struct Player {
             }
             else {
                 AddMessage("Port opened, listening for clients");
-                while (messages.size() < MAX_PLAYERS - 1) {
+                while (messages.size() < maxplayers - 1) {
                     sf::TcpSocket* socket = new sf::TcpSocket;
                     if (listener.accept(*socket) == sf::Socket::Done)
                     {
@@ -304,7 +308,8 @@ struct Player {
         stringstream << "You are the player: " << PlayerID;
         AddMessage(stringstream.str());
         players[PlayerID] = nullptr;
-        while (players.size() < MAX_PLAYERS) {
+		playersIds[nullptr] = PlayerID;
+        while (players.size() < maxplayers) {
             if (selector.wait())
             {
                 for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
@@ -317,6 +322,7 @@ struct Player {
                             return false;
                         }
                         players[id] = &client;
+						playersIds[&client] = id;
                         ostringstream stringstream;
                         stringstream << "Player " << id << " waves at you";
                         AddMessage(stringstream.str());
@@ -334,7 +340,7 @@ struct Player {
         deck = Deck();
         deck.Shuffle(seed);
 
-        for (size_t i = 0; i < MAX_PLAYERS; i++)
+        for (size_t i = 0; i < maxplayers; i++)
         {
             hands[i] = new Hand();
 			hands[i]->isActive = true;
@@ -342,7 +348,7 @@ struct Player {
         }
         for (size_t i = 0; i < deck.deck.size(); i++)
         {
-            hands[i % MAX_PLAYERS]->add(*deck.deck[i]);
+            hands[i % maxplayers]->add(*deck.deck[i]);
         }
         //hands[PlayerID]->Print();
 
@@ -359,7 +365,7 @@ struct Player {
 			if (CheckIfGameOverConditionsApply())
 			{
 				DoGameOver();
-				break;
+				return false;
 			}
 
 			if (hands[PlayerID]->currentTurn == 0)
@@ -420,7 +426,10 @@ struct Player {
 				for (map<TcpSocket*, MessageManager*>::iterator it = messages.begin(); it != messages.end(); it++)
 				{
 					if (!it->second->send_requestCard(playerSelected, categorySelected, numberSelected)) {
-						// TODO: Control
+						if (!PlayerDisconected(playersIds[it->first]))
+							return false;
+						PassTurn();
+						UpdateClient(this);
 					}
 				}
 
@@ -473,6 +482,12 @@ struct Player {
 									break;
 								}
 							}
+							else {
+								if (!PlayerDisconected(playersIds[it->first]))
+									return false;
+								PassTurn();
+								UpdateClient(this);
+							}
 						}
 					}
 				}
@@ -498,6 +513,38 @@ struct Player {
 		hands[playerThief]->add(card);
 		hands[playerVictim]->remove(card);
 		UpdateClient(this);
+	}
+
+	bool PlayerDisconected(int playerID_) {
+		AddConnection(players[playerID_], false);
+		int currentPlayer = 0;
+		Deck tempdeck = Deck();
+		tempdeck.Shuffle(seed);
+		size_t i = 0;
+		while (true) {
+			do
+			{
+				currentPlayer++;
+				if (currentPlayer >= players.size()) currentPlayer = 0;
+			} while (!hands[hands[currentPlayer]->currentTurn]->isActive);
+
+			for (i; i < tempdeck.deck.size(); i++)
+			{
+				if (hands[playerID_]->has(*deck.deck[i])) {
+					hands[currentPlayer]->add(*deck.deck[i]);
+					hands[playerID_]->remove(*deck.deck[i]);
+					break;
+				}
+			}
+			if (!hands[playerID_]->isActive || i >= tempdeck.deck.size() - 1)
+				break;
+		}
+		if (CheckIfGameOverConditionsApply())
+		{
+			DoGameOver();
+			return false;
+		}
+		return true;
 	}
 
 	void PassTurn()

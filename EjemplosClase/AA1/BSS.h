@@ -22,6 +22,11 @@ struct GameSession {
     }
 
     void Close() {
+        for (list<MessageManager*>::const_iterator it = players.begin(); it != players.end(); it++) {
+            if (!(*it)->send_gamefull(players.size())) {
+                AddConnection((*it)->peer.socket, false);
+            }
+        }
         list<MessageManager*> tempplayers = list<MessageManager*>();
         for (list<MessageManager*>::const_iterator it = players.begin(); it != players.end(); it++) {
             if (!(*it)->send_peers(&tempplayers)) {
@@ -47,7 +52,7 @@ const static string SERVER_STATES_STRINGS[] = {
 struct BSS {
     SERVER_STATES currentState = SERVER_STATES::SERVER_STATE_CONNECTING;
     const int MAX_PLAYERS_MIN = 3;
-    const int MAX_PLAYERS_MAX = 9;
+    const int MAX_PLAYERS_MAX = 6;
 	vector<Peer> peerList = vector<Peer>();
 	list<MessageManager*> players = list<MessageManager*>();
 	list<MessageManager*> waitingplayers = list<MessageManager*>();

@@ -41,7 +41,7 @@ struct PeerComplete : Peer
 };
 enum COMUNICATION_MSGS
 {
-    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS, MSG_GREET, MSG_CHAT, MSG_VALIDATION, MSG_GAMEQUERY, MSG_GAMELIST, MSG_TURNDONE, MSG_REQUESTCARD
+    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS, MSG_GREET, MSG_CHAT, MSG_VALIDATION, MSG_GAMEQUERY, MSG_GAMELIST, MSG_GAMEFULL, MSG_TURNDONE, MSG_REQUESTCARD
     , MSG_GAMEOVER
     , MSG_COUNT
 };
@@ -151,6 +151,15 @@ public:
         }
         return true;
     }
+    bool send_gamefull(const int players_) {
+        Packet pack;
+        pack << COMUNICATION_MSGS::MSG_GAMEFULL;
+        pack << static_cast<sf::Uint32>(players_);
+        if (!send_message(pack)) {
+            return false;
+        }
+        return true;
+    }
 	bool send_gameQuery(bool isCreatingServer, string name, string password, int maxPlayers) {
 		Packet pack;
 		pack << COMUNICATION_MSGS::MSG_GAMEQUERY;
@@ -241,6 +250,18 @@ public:
         }
         else {
             return false;
+        }
+        return false;
+    }
+    bool receive_gamefull(int * players_) {
+        Packet pack = receive_message();
+        int msg = COMUNICATION_MSGS::MSG_NULL;
+        if (pack >> msg && msg == COMUNICATION_MSGS::MSG_GAMEFULL) {
+            int id = 0;
+            if (pack >> id) {
+                *players_ = id;
+                return true;
+            }
         }
         return false;
     }
