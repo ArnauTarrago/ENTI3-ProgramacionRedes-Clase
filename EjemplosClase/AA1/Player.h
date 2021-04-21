@@ -81,7 +81,7 @@ struct Player {
             if (status != sf::Socket::Done) {
                 AddMessage("Connection not available. Retry? (y/n)", RED);
                 socket->disconnect();
-                char retry = GetInput_Char();
+                //char retry = GetInput_Char();
                 if (GetInput_Confirmation())
                     continue;
                 else
