@@ -42,46 +42,78 @@ int main()
 		{
 			if (pack >> msg)
 			{
-				std::string chatMessage;
+				std::string message;
 				auxCommHeader = (COMMUNICATION_HEADER_CLIENT_TO_SERVER)msg;
 				long long int auxClientSalt, auxServerSalt;
 
 				// WE CHECK IF THE CLIENT EXISTS IN THE MAP
-				std::string auxPlayerID = ip.toString() + ":" + std::to_string(port);
-				if (clientList.find(auxPlayerID) == clientList.end())
+				std::string auxClientID = ip.toString() + ":" + std::to_string(port);
+				if (clientList.find(auxClientID) == clientList.end())
 				{
 					// IF CLIENT DOESN'T EXIST, WE INSERT IT INTO THE MAP
-					clientList.insert(std::pair<std::string, Client>(auxPlayerID, Client(ip, port)));
+					clientList.insert(std::pair<std::string, Client>(auxClientID, Client(ip, port)));
 				}				
 				
 				switch (auxCommHeader)
 				{
 				case HELLO:
-					pack >> clientList.at(auxPlayerID).clientSalt;
-					std::cout << "Client with IP: " << ip.toString() << " and port " << port << " has sent a HELLO message with salt: " << clientList.at(auxPlayerID).clientSalt << std::endl;					
+					pack >> clientList.at(auxClientID).clientSalt;
+					std::cout << "Client with IP: " << ip.toString() << " and port " << port << " has sent a HELLO message with salt: " << clientList.at(auxClientID).clientSalt << std::endl;					
 					pack.clear();
-					pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::CHALLENGE << clientList.at(auxPlayerID).clientSalt << serverSalt;
+					pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::CHALLENGE << clientList.at(auxClientID).clientSalt << serverSalt;
 					socketStatus = udpSocket.send(pack, ip, port);
 					break;
 				case CHALLENGE_R:
 					pack >> auxClientSalt >> auxServerSalt;
-					std::cout << "Client with IP: " << ip.toString() << " and port " << port << " has sent a CHALLENGE message with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
-					pack.clear();
-					pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::WELCOME << clientList.at(auxPlayerID).clientSalt << serverSalt;
-					socketStatus = udpSocket.send(pack, ip, port);
+					if (auxClientSalt == clientList.at(auxClientID).clientSalt && auxServerSalt == serverSalt)
+					{
+						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a CHALLENGE message with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
+						pack.clear();
+						pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::WELCOME << clientList.at(auxClientID).clientSalt << serverSalt;
+						socketStatus = udpSocket.send(pack, ip, port);
+					}
+					else
+					{
+						std::cout << "[SALT INVALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a CHALLENGE message with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
+					}
 					break;
-				case CHAT_CLIENT_TO_SERVER:
+				case CHAT_CLIENT_TO_SERVER:					
+					pack >> auxClientSalt >> auxServerSalt >> message;
+					if (auxClientSalt == clientList.at(auxClientID).clientSalt && auxServerSalt == serverSalt)
+					{
+						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a CHAT message with salt " << auxClientSalt << "/" << auxServerSalt << " and message:" << message << std::endl;
+
+						// WE SEND THE PACK TO ALL CONNECTED CLIENTS
+						// FOR NOW, THIS ALSO SENDS THE PACKET TO THE ORIGINAL CLIENT SENDER
+						for (std::pair<std::string, Client> element : clientList) {
+							pack.clear();
+							pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::CHAT_SERVER_TO_CLIENT << element.second.clientSalt << serverSalt << message;
+							socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
+						}
+					}
+					else
+					{
+						std::cout << "[SALT INVALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a CHAT message with salt " << auxClientSalt << "/" << auxServerSalt << " and message:" << message << std::endl;
+					}
 					
-					pack >> auxClientSalt >> chatMessage;
-					std::cout << "Client with IP: " << ip.toString() << " and port " << port << " has sent a CHAT message with salt " << auxClientSalt << " and message:" << chatMessage << std::endl;
+					break;
+				case DISCONNECT_CLIENT:
+					pack >> auxClientSalt >> auxServerSalt;
+					if (auxClientSalt == clientList.at(auxClientID).clientSalt && auxServerSalt == serverSalt)
+					{
+						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a DISCONNECT message with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
+						
+						clientList.erase(auxClientID);
 
-					pack.clear();
-					pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::CHAT_SERVER_TO_CLIENT << chatMessage;
-
-					// WE SEND THE PACK TO ALL CONNECTED CLIENTS
-					// FOR NOW, THIS ALSO SENDS THE PACKET TO THE ORIGINAL CLIENT SENDER
-					for (std::pair<std::string, Client> element : clientList) {
-						socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
+						for (std::pair<std::string, Client> element : clientList) {
+							pack.clear();
+							pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::DISCONNECT_CLIENT_HAS_DISCONNECTED << element.second.clientSalt << serverSalt << ip.toString();
+							socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
+						}						
+					}
+					else
+					{
+						std::cout << "[SALT INVALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a DISCONNECT message with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
 					}
 					break;
 				default:

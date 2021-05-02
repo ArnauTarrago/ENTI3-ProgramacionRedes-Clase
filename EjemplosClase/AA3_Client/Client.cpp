@@ -46,6 +46,7 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 
 				pack >> auxClientSalt >> auxServerSalt;
 				std::cout << "Server has sent back a CHALLENGE with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
+				serverSalt = auxServerSalt;
 				pack.clear();
 				pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::CHALLENGE_R << auxClientSalt << auxServerSalt;
 				socketStatus = udpSocket.send(pack, _serverIP, _serverPort);
@@ -56,8 +57,13 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 				clientStatus = CLIENT_STATUS::CONNECTED;
 				break;
 			case CHAT_SERVER_TO_CLIENT:
-				pack >> message;
+				pack >> auxClientSalt >> auxServerSalt >> message;
+				std::cout << "Server has sent back a CHAT with salt " << auxClientSalt << "/" << auxServerSalt << " and message: " << message << std::endl;
 				aMensajes.push_back(message);
+				break;
+			case DISCONNECT_CLIENT_HAS_DISCONNECTED:
+				pack >> auxClientSalt >> auxServerSalt >> message;
+				std::cout << "Client with IP " << message << " has disconnected from the server." << std::endl;
 				break;
 			default:
 				break;
@@ -76,23 +82,35 @@ void Send()
 	inactivityTimer.start();
 	while (clientStatus != CLIENT_STATUS::DISCONNECTED)
 	{
-		if (helloTimer.elapsedSeconds() > 5.0)
+		if (clientStatus == CLIENT_STATUS::CONNECTING)
 		{
-			if (clientStatus == CLIENT_STATUS::CONNECTING)
-			{
+			if (helloTimer.elapsedSeconds() > 5.0)
+			{				
 				std::cout << "Resent HELLO to server with salt: " << clientSalt << std::endl;
 				pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::HELLO << clientSalt;
 				socketStatus = udpSocket.send(pack, serverIP, serverPort);
+				
+				helloTimer.start();
 			}
-			helloTimer.start();					
+			if (inactivityTimer.elapsedSeconds() > 30)
+			{
+				std::cout << "30 seconds have passed since the server responded, cancelling connection..." << std::endl;
+				helloTimer.stop();
+				inactivityTimer.stop();
+				clientStatus = CLIENT_STATUS::DISCONNECTED;
+			}
 		}
-		if (inactivityTimer.elapsedSeconds() > 30)
+		else if (clientStatus == CLIENT_STATUS::CONNECTED)
 		{
-			std::cout << "30 seconds have passed since the server responded, disconnecting..." << std::endl;
-			helloTimer.stop();
-			inactivityTimer.stop();
-			clientStatus = CLIENT_STATUS::DISCONNECTED;
+			if (inactivityTimer.elapsedSeconds() > 60)
+			{
+				std::cout << "60 seconds have passed since the server responded, disconnecting from server..." << std::endl;
+				helloTimer.stop();
+				inactivityTimer.stop();
+				clientStatus = CLIENT_STATUS::DISCONNECTED;
+			}
 		}
+		
 	}
 		
 }
@@ -191,7 +209,17 @@ int main()
 						mtx_messages.unlock();
 						pack.clear();
 						std::string chatMessage = mensaje;
-						pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::CHAT_CLIENT_TO_SERVER << clientSalt << chatMessage;
+						if (chatMessage == "exit" || chatMessage == ">exit")
+						{
+							pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::DISCONNECT_CLIENT << clientSalt << serverSalt;
+							std::cout << "Disconnecting from server." << std::endl;
+							clientStatus = CLIENT_STATUS::DISCONNECTED;
+						}
+						else
+						{
+							pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::CHAT_CLIENT_TO_SERVER << clientSalt << serverSalt << chatMessage;
+						}
+						
 						socketStatus = udpSocket.send(pack, serverIP, serverPort);
 						pack.clear();
 						mensaje = ">";
