@@ -25,7 +25,7 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 	COMMUNICATION_HEADER_SERVER_TO_CLIENT auxCommHeader;
 	int msg;
 
-	while (true)
+	while (clientStatus != CLIENT_STATUS::DISCONNECTED)
 	{
 		sf::Packet pack;
 		std::string message;
@@ -57,13 +57,28 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 				clientStatus = CLIENT_STATUS::CONNECTED;
 				break;
 			case CHAT_SERVER_TO_CLIENT:
-				pack >> auxClientSalt >> auxServerSalt >> message;
+			{
+				sf::Uint32 temp;
+				sf::Uint32 temp2;
+				pack >> auxClientSalt >> auxServerSalt >> temp >> temp2 >> message;
+				sf::IpAddress ip = sf::IpAddress(temp);
 				std::cout << "Server has sent back a CHAT with salt " << auxClientSalt << "/" << auxServerSalt << " and message: " << message << std::endl;
-				aMensajes.push_back(message);
+				stringstream ss;
+				ss << "[" << ip.toString() << ":" << temp2 << "]:	" << message;
+				aMensajes.push_back(ss.str());
+			}
 				break;
 			case DISCONNECT_CLIENT_HAS_DISCONNECTED:
-				pack >> auxClientSalt >> auxServerSalt >> message;
-				std::cout << "Client with IP " << message << " has disconnected from the server." << std::endl;
+			{
+				sf::Uint32 temp;
+				pack >> auxClientSalt >> auxServerSalt >> temp;
+				sf::IpAddress ip = sf::IpAddress(temp);
+				std::cout << "Client with IP " << ip.toString() << " has disconnected from the server." << std::endl;
+			}
+				break;
+			case DISCONNECT_SERVER:
+				std::cout << "Server disconnected, closing..." << std::endl;
+				clientStatus = CLIENT_STATUS::DISCONNECTED;
 				break;
 			default:
 				break;
@@ -133,10 +148,8 @@ int main()
 	socketStatus = udpSocket.send(pack, serverIP, serverPort);
 
 	std::thread tReceive(&Receive, serverIP, serverPort);
-	tReceive.detach();
 
 	std::thread tSend(&Send);
-	tSend.detach();
 
 	std::cout << "Awaiting connection with server, please wait..." << std::endl;
 	while (clientStatus == CLIENT_STATUS::CONNECTING)
@@ -251,7 +264,9 @@ int main()
 			window.display();
 			window.clear();
 		}
-	}	
+	}
+	tReceive.join();
+	tSend.join();
 
 	system("pause");
 	return 0;
