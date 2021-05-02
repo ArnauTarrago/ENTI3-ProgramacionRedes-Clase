@@ -5,17 +5,26 @@
 #include <mutex>
 #include <SFML/Network.hpp>
 #include <SFML/Graphics.hpp>
+#include "../shared.h"
+#include "../timer.h"
 
+CLIENT_STATUS clientStatus = CLIENT_STATUS::DISCONNECTED;
+long long int serverSalt, clientSalt;
+sf::IpAddress serverIP;
+unsigned short serverPort;
 
 sf::UdpSocket udpSocket;
 sf::UdpSocket::Status socketStatus = sf::UdpSocket::Status::NotReady;
-sf::IpAddress serverIP = "localhost";
-unsigned short serverPort = 50000;
 std::mutex mtx_messages;
 std::vector<std::string> aMensajes;
 
+Timer helloTimer, inactivityTimer;
+
 void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 {
+	COMMUNICATION_HEADER_SERVER_TO_CLIENT auxCommHeader;
+	int msg;
+
 	while (true)
 	{
 		sf::Packet pack;
@@ -24,12 +33,68 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 		socketStatus = udpSocket.receive(pack, _serverIP, _serverPort);
 
 		mtx_messages.lock();
-		if (pack >> message)
+		if (pack >> msg)
 		{
-			aMensajes.push_back(message);
+			long long int auxClientSalt, auxServerSalt;
+			auxCommHeader = (COMMUNICATION_HEADER_SERVER_TO_CLIENT)msg;
+			// WE RESET THE X SECONDS TIMER USED FOR CHECKING FOR INACTIVITY
+			helloTimer.start();
+			inactivityTimer.start();
+			switch (auxCommHeader)
+			{
+			case CHALLENGE:
+
+				pack >> auxClientSalt >> auxServerSalt;
+				std::cout << "Server has sent back a CHALLENGE with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
+				pack.clear();
+				pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::CHALLENGE_R << auxClientSalt << auxServerSalt;
+				socketStatus = udpSocket.send(pack, _serverIP, _serverPort);
+				break;
+			case WELCOME:
+				pack >> auxClientSalt >> auxServerSalt;
+				std::cout << "Server has sent back a WELCOME with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
+				clientStatus = CLIENT_STATUS::CONNECTED;
+				break;
+			case CHAT_SERVER_TO_CLIENT:
+				pack >> message;
+				aMensajes.push_back(message);
+				break;
+			default:
+				break;
+			}
+			
 		}
 		mtx_messages.unlock();
 	}
+}
+
+void Send()
+{
+	sf::Packet pack;
+
+	helloTimer.start();
+	inactivityTimer.start();
+	while (clientStatus != CLIENT_STATUS::DISCONNECTED)
+	{
+		if (helloTimer.elapsedSeconds() > 5.0)
+		{
+			if (clientStatus == CLIENT_STATUS::CONNECTING)
+			{
+				std::cout << "Resent HELLO to server with salt: " << clientSalt << std::endl;
+				pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::HELLO << clientSalt;
+				socketStatus = udpSocket.send(pack, serverIP, serverPort);
+			}
+			helloTimer.start();					
+		}
+		if (inactivityTimer.elapsedSeconds() > 30)
+		{
+			std::cout << "30 seconds have passed since the server responded, disconnecting..." << std::endl;
+			helloTimer.stop();
+			inactivityTimer.stop();
+			clientStatus = CLIENT_STATUS::DISCONNECTED;
+		}
+	}
+		
 }
 
 int main()
@@ -41,16 +106,32 @@ int main()
 	std::cout << "Enter server port: ";
 	std::cin >> serverPort;
 
+	clientSalt = Utilities::GenerateSalt();
+	std::cout << "Generated salt: " << clientSalt << endl;
+
+	pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::HELLO << clientSalt;
+	clientStatus = CLIENT_STATUS::CONNECTING;
+
 	socketStatus = udpSocket.send(pack, serverIP, serverPort);
 
 	std::thread tReceive(&Receive, serverIP, serverPort);
 	tReceive.detach();
 
-	if (socketStatus != sf::UdpSocket::Status::Done)
+	std::thread tSend(&Send);
+	tSend.detach();
+
+	std::cout << "Awaiting connection with server, please wait..." << std::endl;
+	while (clientStatus == CLIENT_STATUS::CONNECTING)
+	{
+
+	}
+
+	if (clientStatus == CLIENT_STATUS::DISCONNECTED)
 	{
 		std::cout << "Connection failed." << std::endl;
 	}
-	else
+
+	else if (clientStatus == CLIENT_STATUS::CONNECTED)
 	{
 		std::cout << "Connection succesful." << std::endl;
 
@@ -83,6 +164,11 @@ int main()
 
 		while (window.isOpen())
 		{
+			if (clientStatus == CLIENT_STATUS::DISCONNECTED)
+			{
+				window.close();
+			}
+
 			sf::Event evento;
 			while (window.pollEvent(evento))
 			{
@@ -103,8 +189,9 @@ int main()
 							aMensajes.erase(aMensajes.begin(), aMensajes.begin() + 1);
 						}
 						mtx_messages.unlock();
-						std::string aux = mensaje;
-						pack << aux;			
+						pack.clear();
+						std::string chatMessage = mensaje;
+						pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::CHAT_CLIENT_TO_SERVER << clientSalt << chatMessage;
 						socketStatus = udpSocket.send(pack, serverIP, serverPort);
 						pack.clear();
 						mensaje = ">";
