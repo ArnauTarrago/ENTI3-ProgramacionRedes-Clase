@@ -21,6 +21,21 @@ std::vector<std::string> aMensajes;
 
 Timer helloTimer, inactivityTimer;
 
+bool IsClientSaltValid(long long int auxClientSalt)
+{
+	return auxClientSalt == clientSalt;
+}
+
+bool IsServerSaltValid(long long int auxServerSalt)
+{
+	return auxServerSalt == serverSalt;
+}
+
+bool AreSaltsValid(long long int auxServerSalt, long long int auxClientSalt)
+{
+	return IsServerSaltValid(auxServerSalt) && IsClientSaltValid(auxClientSalt);
+}
+
 void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 {
 	COMMUNICATION_HEADER_SERVER_TO_CLIENT auxCommHeader;
@@ -33,23 +48,26 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 
 		socketStatus = udpSocket.receive(pack, _serverIP, _serverPort);
 
-		mtx_messages.lock();
 		if (pack >> msg)
 		{
 			long long int auxClientSalt, auxServerSalt;
 			auxCommHeader = (COMMUNICATION_HEADER_SERVER_TO_CLIENT)msg;
 			// WE RESET THE X SECONDS TIMER USED FOR CHECKING FOR INACTIVITY
+			if (clientStatus == CLIENT_STATUS::CONNECTING) helloTimer.start();
 			inactivityTimer.start();
 			switch (auxCommHeader)
 			{
 			case CHALLENGE:
 
 				pack >> auxClientSalt >> auxServerSalt;
-				std::cout << "Server has sent back a CHALLENGE with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
-				serverSalt = auxServerSalt;
-				pack.clear();
-				pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::CHALLENGE_R << auxClientSalt << auxServerSalt;
-				socketStatus = udpSocket.send(pack, _serverIP, _serverPort);
+				if (IsClientSaltValid(auxClientSalt))
+				{
+					std::cout << "Server has sent back a CHALLENGE with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
+					serverSalt = auxServerSalt;
+					pack.clear();
+					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::CHALLENGE_R << auxClientSalt << auxServerSalt;
+					socketStatus = udpSocket.send(pack, _serverIP, _serverPort);
+				}				
 				break;
 			case WELCOME:
 				pack >> auxClientSalt >> auxServerSalt;
@@ -61,19 +79,36 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 				sf::Uint32 temp;
 				sf::Uint32 temp2;
 				pack >> auxClientSalt >> auxServerSalt >> temp >> temp2 >> message;
-				sf::IpAddress ip = sf::IpAddress(temp);
-				std::cout << "Server has sent back a CHAT with salt " << auxClientSalt << "/" << auxServerSalt << " and message: " << message << std::endl;
-				stringstream ss;
-				ss << "[" << ip.toString() << ":" << temp2 << "]:	" << message;
-				aMensajes.push_back(ss.str());
+				if (AreSaltsValid(auxServerSalt, auxClientSalt))
+				{
+					sf::IpAddress ip = sf::IpAddress(temp);
+					std::cout << "Server has sent back a CHAT with salt " << auxClientSalt << "/" << auxServerSalt << " and message: " << message << std::endl;
+					stringstream ss;
+					ss << "[" << ip.toString() << ":" << temp2 << "]:	" << message;
+					mtx_messages.lock();
+					aMensajes.push_back(ss.str());
+					mtx_messages.unlock();
+				}
+				
 			}
 			break;
 			case DISCONNECT_CLIENT_HAS_DISCONNECTED:
 			{
 				sf::Uint32 temp;
-				pack >> auxClientSalt >> auxServerSalt >> temp;
-				sf::IpAddress ip = sf::IpAddress(temp);
-				std::cout << "Client with IP " << ip.toString() << " has disconnected from the server." << std::endl;
+				unsigned short port;
+				pack >> auxClientSalt >> auxServerSalt >> temp >> port;
+				if (AreSaltsValid(auxServerSalt, auxClientSalt))
+				{
+					sf::IpAddress ip = sf::IpAddress(temp);
+
+					std::cout << "Client with IP " << ip.toString() << " and port " << port << " has disconnected from the server." << std::endl;
+					stringstream ss;
+					ss << "[" << ip.toString() << ":" << ip << "]:	" << "Client with IP " << ip.toString() << " and port " << port << " has disconnected from the server.";
+					mtx_messages.lock();
+					aMensajes.push_back(ss.str());
+					mtx_messages.unlock();
+				}
+
 			}
 			break;
 			case DISCONNECT_SERVER:
@@ -85,11 +120,11 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 			}
 
 		}
-		mtx_messages.unlock();
+		
 	}
 }
 
-void Send()
+void TimerCheck()
 {
 	sf::Packet pack;
 
@@ -149,7 +184,7 @@ int main()
 
 	std::thread tReceive(&Receive, serverIP, serverPort);
 
-	std::thread tSend(&Send);
+	std::thread tSend(&TimerCheck);
 
 	std::cout << "Awaiting connection with server, please wait..." << std::endl;
 	while (clientStatus == CLIENT_STATUS::CONNECTING)
