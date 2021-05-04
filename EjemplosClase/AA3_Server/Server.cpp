@@ -1,6 +1,8 @@
 #include <string>
 #include <thread>
 #include <iostream>  
+#include <sstream>
+#include <sstream>
 #include <SFML/Network.hpp>
 #include "../shared.h"
 

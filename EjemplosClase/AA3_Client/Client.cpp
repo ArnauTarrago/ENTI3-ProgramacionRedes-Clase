@@ -3,6 +3,7 @@
 #include <iostream>   
 #include <vector>
 #include <mutex>
+#include <sstream>
 #include <SFML/Network.hpp>
 #include <SFML/Graphics.hpp>
 #include "../shared.h"
