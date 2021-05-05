@@ -143,6 +143,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Constants.h" />
     <ClInclude Include="PlayerInfo.h" />
     <ClInclude Include="shared.h" />
     <ClInclude Include="timer.h" />

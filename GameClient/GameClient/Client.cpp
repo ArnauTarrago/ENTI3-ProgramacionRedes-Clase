@@ -4,6 +4,7 @@
 #include <vector>
 #include <mutex>
 #include <sstream>
+#include <Constants.h>
 #include <SFML/Network.hpp>
 #include <SFML/Graphics.hpp>
 #include "shared.h"
@@ -36,6 +37,11 @@ bool AreSaltsValid(long long int auxServerSalt, long long int auxClientSalt)
 	return IsServerSaltValid(auxServerSalt) && IsClientSaltValid(auxClientSalt);
 }
 
+int GetChallengeResponse(int challenge)
+{
+	return challenge + 1;
+}
+
 void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 {
 	COMMUNICATION_HEADER_SERVER_TO_CLIENT auxCommHeader;
@@ -58,14 +64,15 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 			switch (auxCommHeader)
 			{
 			case CHALLENGE:
-
-				pack >> auxClientSalt >> auxServerSalt;
+				int challenge, challengeResponse;
+				pack >> auxClientSalt >> auxServerSalt >> challenge;
 				if (IsClientSaltValid(auxClientSalt))
 				{
 					std::cout << "Server has sent back a CHALLENGE with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
 					serverSalt = auxServerSalt;
 					pack.clear();
-					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::CHALLENGE_R << auxClientSalt << auxServerSalt;
+					challengeResponse = GetChallengeResponse(challenge);
+					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::CHALLENGE_R << auxClientSalt << auxServerSalt << challengeResponse;
 					socketStatus = udpSocket.send(pack, _serverIP, _serverPort);
 				}				
 				break;
@@ -142,7 +149,7 @@ void TimerCheck()
 
 				helloTimer.start();
 			}
-			if (inactivityTimer.elapsedSeconds() > 30)
+			if (inactivityTimer.elapsedSeconds() > TIMER_CLIENT_CHECK_FOR_SERVER_INACTIVITY_DURING_CONNECTION_IN_SECONDS)
 			{
 				std::cout << "30 seconds have passed since the server responded, cancelling connection..." << std::endl;
 				helloTimer.stop();
@@ -152,7 +159,7 @@ void TimerCheck()
 		}
 		else if (clientStatus == CLIENT_STATUS::CONNECTED)
 		{
-			if (inactivityTimer.elapsedSeconds() > 60)
+			if (inactivityTimer.elapsedSeconds() > TIMER_CLIENT_CHECK_FOR_SERVER_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
 			{
 				std::cout << "60 seconds have passed since the server responded, disconnecting from server..." << std::endl;
 				helloTimer.stop();
