@@ -9,6 +9,7 @@
 #include <SFML/Graphics.hpp>
 #include "shared.h"
 #include "timer.h"
+#include <GameInfo.h>
 
 CLIENT_STATUS clientStatus = CLIENT_STATUS::DISCONNECTED;
 long long int serverSalt, clientSalt;
@@ -118,10 +119,28 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 
 			}
 			break;
+			case NEW_CLIENT:
+				sf::Uint32 temp;
+				unsigned short port;
+				Cell clientPosition;
+				pack >> auxClientSalt >> auxServerSalt >> temp >> port >> clientPosition.x >> clientPosition.y;
+				if (AreSaltsValid(auxServerSalt, auxClientSalt))
+				{
+					sf::IpAddress ip = sf::IpAddress(temp);
+
+					std::cout << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPosition.x << "," << clientPosition.y  << ")." << std::endl;
+					stringstream ss;
+					ss << "[" << ip.toString() << ":" << ip << "]:	" << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPosition.x << "," << clientPosition.y << ").";
+					mtx_messages.lock();
+					aMensajes.push_back(ss.str());
+					mtx_messages.unlock();
+				}
+				break;
 			case DISCONNECT_SERVER:
 				std::cout << "Server disconnected, closing..." << std::endl;
 				clientStatus = CLIENT_STATUS::DISCONNECTED;
 				break;
+
 			default:
 				break;
 			}

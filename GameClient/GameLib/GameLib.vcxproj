@@ -144,6 +144,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Constants.h" />
+    <ClInclude Include="GameInfo.h" />
     <ClInclude Include="PlayerInfo.h" />
     <ClInclude Include="shared.h" />
     <ClInclude Include="timer.h" />

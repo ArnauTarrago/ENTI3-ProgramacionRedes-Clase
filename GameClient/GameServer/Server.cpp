@@ -6,12 +6,15 @@
 #include <Constants.h>
 #include <SFML/Network.hpp>
 #include "shared.h"
+#include <GameInfo.h>
 
 /* Dubtes
 -Quina informació posem pels que s'estan conectant?
 -Si client diu algo, comprovem que esta tant en el map de conectats com els de conectant?
 -"Reservar espai"?
 */
+
+
 
 struct PreInfo
 {
@@ -26,14 +29,16 @@ struct PreInfo
 
 struct Client
 {
-	Client(sf::IpAddress _ip, unsigned short _port) : ip(_ip), port(_port) {};
-	Client(sf::IpAddress _ip, unsigned short _port, long long int _clientSalt, long long int _serverSalt, Timer _inactivityTimer) 
-		: ip(_ip), port(_port), clientSalt(_clientSalt), serverSalt(_serverSalt), inactivityTimer(_inactivityTimer){};
 	sf::IpAddress ip;
 	unsigned short port;
 	long long int clientSalt;
 	long long int serverSalt;
 	Timer inactivityTimer;
+	Cell position;
+
+	Client(sf::IpAddress _ip, unsigned short _port, long long int _clientSalt, long long int _serverSalt, Timer _inactivityTimer, Cell _position) 
+		: ip(_ip), port(_port), clientSalt(_clientSalt), serverSalt(_serverSalt), inactivityTimer(_inactivityTimer), position(_position){};
+
 };
 
 // --- Global variables ---
@@ -229,13 +234,24 @@ void receive() {
 							std::cout << "[CHALLENGE RESPONSE VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a CHALLENGE_R message with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
 							pack.clear();
 
+							Cell position = Cell(1, 1);
+
+							// WE TELL THE CURRENTLY CONNECTED CLIENTS THAT A NEW CLIENT HAS CONNECTED
+							for (std::pair<std::string, Client> element : connectedClientsList) {
+								pack.clear();
+								pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::NEW_CLIENT << element.second.clientSalt << element.second.serverSalt << ip.toInteger() << port << position.x << position.y;
+								socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
+							}
+
 							// WE CREATE A NEW CLIENT AND PUT IT INTO THE CONNECTED CLIENTS MAP
 							Timer inactivityTimer;
-							inactivityTimer.start();
-							Client newClient = Client(connectingClientsList.at(auxClientID).ip, connectingClientsList.at(auxClientID).port, connectingClientsList.at(auxClientID).clientSalt, connectingClientsList.at(auxClientID).serverSalt, inactivityTimer);
+							inactivityTimer.start();							
+							Client newClient = Client(connectingClientsList.at(auxClientID).ip, connectingClientsList.at(auxClientID).port, connectingClientsList.at(auxClientID).clientSalt, connectingClientsList.at(auxClientID).serverSalt, inactivityTimer, position);
 							connectedClientsList.insert(std::pair<std::string, Client>(auxClientID, newClient));
 							
 							pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::WELCOME << connectingClientsList.at(auxClientID).clientSalt << connectingClientsList.at(auxClientID).serverSalt;
+
+
 							
 							// WE ERASE THE ENTRY FROM THE CONNECTING CLIENTS MAP
 							connectingClientsList.erase(auxClientID);
