@@ -23,6 +23,17 @@ std::vector<std::string> aMensajes;
 
 Timer helloTimer, inactivityTimer;
 
+// Network Manager ??
+struct NETWORK_MANAGER
+{
+	COMMUNICATION_HEADER_CLIENT_TO_SERVER header;
+	int idPacket;
+	// ...
+};
+std::vector<NETWORK_MANAGER> ListMsgNonAck;
+int localPacketID = 0;
+// --------------
+
 bool IsClientSaltValid(long long int auxClientSalt)
 {
 	return auxClientSalt == clientSalt;
