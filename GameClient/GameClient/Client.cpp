@@ -182,7 +182,7 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 
 void TimerCheck()
 {
-	sf::Packet pack;
+	/*sf::Packet pack;
 
 	helloTimer.start();
 	inactivityTimer.start();
@@ -190,7 +190,7 @@ void TimerCheck()
 	{
 		if (clientStatus == CLIENT_STATUS::CONNECTING)
 		{
-			if (helloTimer.elapsedSeconds() > 5.0)
+			if (helloTimer.elapsedSeconds() > TIMER_CLIENT_CHECK_FOR_SERVER_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
 			{
 				std::cout << "Resent HELLO to server with salt: " << clientSalt << std::endl;
 				pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::HELLO << clientSalt;
@@ -216,8 +216,7 @@ void TimerCheck()
 				clientStatus = CLIENT_STATUS::DISCONNECTED;
 			}
 		}
-
-	}
+	}*/
 
 }
 #pragma endregion

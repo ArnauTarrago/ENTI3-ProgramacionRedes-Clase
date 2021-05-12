@@ -7,11 +7,19 @@
 #include <SFML/Network.hpp>
 #include "shared.h"
 #include <GameInfo.h>
+#include <list>
+#include <mutex>
+
+/*
+localhost
+50000
+
+*/
 
 #pragma region Data Structures
 struct PreInfo
 {
-	PreInfo(sf::IpAddress _ip, unsigned short _port) : ip(_ip), port(_port) { clientSalt = 0; serverSalt = 0; inactivityTimer.start(); challenge = 0; };
+	PreInfo(sf::IpAddress _ip, unsigned short _port, long long int _clientSalt, long long int _serverSalt, Timer _inactivityTimer, int _challenge) : ip(_ip), port(_port),clientSalt(_clientSalt) {};
 	sf::IpAddress ip;
 	unsigned short port;
 	long long int clientSalt;
@@ -47,6 +55,7 @@ std::map<std::string, PreInfo> connectingClientsList;
 std::map<int, Client> connectedClientsList;
 std::map<long int, CriticalPacket> listMsgNonAck;
 Timer resendUnvalidatedPacketsTimer;
+std::mutex sv_semaphore;
 long int localPacketID = 0;
 int localClientID = 0;
 bool executing;
@@ -54,7 +63,7 @@ bool executing;
 
 #pragma region Operations
 
-void DisconnectClient(sf::IpAddress ip, unsigned short port)
+void SendDisconnectMessageToConnectedClients(sf::IpAddress ip, unsigned short port)
 {
 	sf::Packet pack;
 
@@ -168,38 +177,46 @@ void commands() {
 
 void TimerCheck()
 {
+	std::list<int> auxConnectedClientsList;
+	std::list<std::string> auxConnectingClientsList;
 	while (executing)
 	{
-		//for (std::map<int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end();)
-		//{
-		//	if (it->second.inactivityTimer.elapsedSeconds() > TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
-		//	{
-		//		std::cout << it->second.inactivityTimer.elapsedSeconds() << std::endl;
-		//		std::cout << "Client with IP: " << it->second.ip.toString() << " and port " << it->second.port << " has been disconnected for inactivity. " << std::endl;
+		for (std::map<int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end(); ++it)
+		{
+			if (it->second.inactivityTimer.elapsedSeconds() > TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
+			{
+				auxConnectedClientsList.push_back(it->first);
+				std::cout << "Client with IP: " << it->second.ip.toString() << " and port " << it->second.port << " has been disconnected for inactivity. " << std::endl;
+				SendDisconnectMessageToConnectedClients(it->second.ip, it->second.port);
+			}
+		}
 
-		//		DisconnectClient(it->second.ip, it->second.port);
-		//		it = connectedClientsList.erase(it);
-		//	}
-		//	else
-		//	{
-		//		++it;
-		//	}			
-		//}
+		sv_semaphore.lock();
+		for (std::list<int>::iterator it = auxConnectedClientsList.begin(); it != auxConnectedClientsList.end(); ++it)
+		{			
+			connectedClientsList.erase(*it);
+		}
+		sv_semaphore.unlock();
 
-		//for (std::map<std::string, PreInfo>::iterator it = connectingClientsList.begin(); it != connectingClientsList.end();)
-		//{
-		//	if (it->second.inactivityTimer.elapsedSeconds() > TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_DURING_CONNECTION_IN_SECONDS)
-		//	{
-		//		std::cout << it->second.inactivityTimer.elapsedSeconds() << std::endl;
-		//		std::cout << "Client with IP: " << it->second.ip.toString() << " and port " << it->second.port << " has been disconnected for inactivity. " << std::endl;
-		//		sf::String auxClientID = it->second.ip.toString() + ":" + std::to_string(it->second.port);
-		//		it = connectingClientsList.erase(it);
-		//	}
-		//	else
-		//	{
-		//		//++it;
-		//	}
-		//}
+		connectedClientsList.clear();
+
+		for (std::map<std::string, PreInfo>::iterator it = connectingClientsList.begin(); it != connectingClientsList.end(); ++it)
+		{
+			if (it->second.inactivityTimer.elapsedSeconds() > TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_DURING_CONNECTION_IN_SECONDS)
+			{
+				auxConnectingClientsList.push_back(it->first);
+				std::cout << "Client with IP: " << it->second.ip.toString() << " and port " << it->second.port << " has been disconnected for inactivity. " << std::endl;
+			}
+		}
+
+		sv_semaphore.lock();
+		for (std::list<std::string>::iterator it = auxConnectingClientsList.begin(); it != auxConnectingClientsList.end(); ++it)
+		{
+			connectingClientsList.erase(*it);
+		}
+		sv_semaphore.unlock();
+
+		auxConnectingClientsList.clear();
 
 		/*if (resendUnvalidatedPacketsTimer.elapsedMilliseconds() >= TIMER_RESEND_CRITICAL_PACKETS_IN_MILISECONDS)
 		{
@@ -260,7 +277,11 @@ void receive() {
 					if (connectingClientsList.find(auxClientIpPort) == connectingClientsList.end()) // if it doesn't exist
 					{
 						// if client doesn't exist, we insert it into the map
-						connectingClientsList.insert(std::pair<std::string, PreInfo>(auxClientIpPort, PreInfo(ip, port)));
+						Timer inactivityTimer;
+						inactivityTimer.start();
+						sv_semaphore.lock();
+						connectingClientsList.insert(std::pair<std::string, PreInfo>(auxClientIpPort, PreInfo(ip, port,0,0,inactivityTimer,0)));
+						sv_semaphore.unlock();
 					}
 				}
 				
@@ -276,7 +297,6 @@ void receive() {
 					pack.clear();
 					connectingClientsList.at(auxClientIpPort).serverSalt = Utilities::GenerateSalt();
 					connectingClientsList.at(auxClientIpPort).challenge = GenerateChallenge();
-					connectingClientsList.at(auxClientIpPort).inactivityTimer.start();
 					pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::CHALLENGE << connectingClientsList.at(auxClientIpPort).clientSalt << connectingClientsList.at(auxClientIpPort).serverSalt << connectingClientsList.at(auxClientIpPort).challenge;
 					socketStatus = udpSocket.send(pack, ip, port);
 				}
@@ -320,10 +340,15 @@ void receive() {
 							Timer inactivityTimer;
 							inactivityTimer.start();							
 							Client newClient = Client(connectingClientsList.at(auxClientIpPort).ip, connectingClientsList.at(auxClientIpPort).port, connectingClientsList.at(auxClientIpPort).clientSalt, connectingClientsList.at(auxClientIpPort).serverSalt, inactivityTimer, position);
+
+							sv_semaphore.lock();
 							connectedClientsList.insert(std::pair<int, Client>(auxNewClientID, newClient));
-							
+							sv_semaphore.unlock();
+
 							// WE ERASE THE ENTRY FROM THE CONNECTING CLIENTS MAP
+							sv_semaphore.lock();
 							connectingClientsList.erase(auxClientIpPort);
+							sv_semaphore.unlock();
 						}
 						else
 						{
@@ -368,7 +393,7 @@ void receive() {
 					{
 						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a DISCONNECT message with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
 						
-						DisconnectClient(ip, port);						
+						SendDisconnectMessageToConnectedClients(ip, port);						
 						connectedClientsList.erase(auxClientID);
 					}
 					else
