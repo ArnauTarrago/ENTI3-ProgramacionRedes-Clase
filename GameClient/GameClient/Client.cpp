@@ -24,16 +24,16 @@ std::vector<std::string> aMensajes;
 Timer helloTimer, inactivityTimer;
 
 // Network Manager ??
-struct NETWORK_MANAGER
+struct CriticalPacket
 {
 	COMMUNICATION_HEADER_CLIENT_TO_SERVER header;
-	int idPacket;
 	// ...
 };
-std::vector<NETWORK_MANAGER> ListMsgNonAck;
+std::map<int, CriticalPacket> listMsgNonAck;
 int localPacketID = 0;
 // --------------
 
+#pragma region Validations
 bool IsClientSaltValid(long long int auxClientSalt)
 {
 	return auxClientSalt == clientSalt;
@@ -53,6 +53,9 @@ int GetChallengeResponse(int challenge)
 {
 	return challenge + 1;
 }
+#pragma endregion
+
+#pragma region Threads
 
 void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 {
@@ -70,14 +73,18 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 		{
 			long long int auxClientSalt, auxServerSalt;
 			auxCommHeader = (COMMUNICATION_HEADER_SERVER_TO_CLIENT)msg;
+
 			// WE RESET THE X SECONDS TIMER USED FOR CHECKING FOR INACTIVITY
 			if (clientStatus == CLIENT_STATUS::CONNECTING) helloTimer.start();
 			inactivityTimer.start();
+
+			pack >> auxClientSalt >> auxServerSalt;
+
 			switch (auxCommHeader)
 			{
 			case CHALLENGE:
 				int challenge, challengeResponse;
-				pack >> auxClientSalt >> auxServerSalt >> challenge;
+				pack >> challenge;
 				if (IsClientSaltValid(auxClientSalt))
 				{
 					std::cout << "Server has sent back a CHALLENGE with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
@@ -89,21 +96,32 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 				}				
 				break;
 			case WELCOME:
-				pack >> auxClientSalt >> auxServerSalt;
-				std::cout << "Server has sent back a WELCOME with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
-				clientStatus = CLIENT_STATUS::CONNECTED;
+				if (AreSaltsValid(auxServerSalt, auxClientSalt))
+				{
+					int numberOfConnectedClients;
+
+					pack >> numberOfConnectedClients;
+
+					for (size_t i = 0; i < numberOfConnectedClients; i++)
+					{
+						// TODO: UNPACK AND STORE OTHER CLIENTS' POSITIONS
+						// pack >> positionX >> positionY
+					}
+					std::cout << "Server has sent back a WELCOME with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
+					clientStatus = CLIENT_STATUS::CONNECTED;
+				}
 				break;
 			case CHAT_SERVER_TO_CLIENT:
 			{
 				sf::Uint32 temp;
 				sf::Uint32 temp2;
-				pack >> auxClientSalt >> auxServerSalt >> temp >> temp2 >> message;
+				pack >> temp >> temp2 >> message;
 				if (AreSaltsValid(auxServerSalt, auxClientSalt))
 				{
 					sf::IpAddress ip = sf::IpAddress(temp);
 					std::cout << "Server has sent back a CHAT with salt " << auxClientSalt << "/" << auxServerSalt << " and message: " << message << std::endl;
 					stringstream ss;
-					ss << "[" << ip.toString() << ":" << temp2 << "]:	" << message;
+					ss << "[" << ip.toString() << ":" << temp2 << "]: " << message;
 					mtx_messages.lock();
 					aMensajes.push_back(ss.str());
 					mtx_messages.unlock();
@@ -115,14 +133,14 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 			{
 				sf::Uint32 temp;
 				unsigned short port;
-				pack >> auxClientSalt >> auxServerSalt >> temp >> port;
+				pack >> temp >> port;
 				if (AreSaltsValid(auxServerSalt, auxClientSalt))
 				{
 					sf::IpAddress ip = sf::IpAddress(temp);
 
 					std::cout << "Client with IP " << ip.toString() << " and port " << port << " has disconnected from the server." << std::endl;
 					stringstream ss;
-					ss << "[" << ip.toString() << ":" << ip << "]:	" << "Client with IP " << ip.toString() << " and port " << port << " has disconnected from the server.";
+					ss << "[" << ip.toString() << ":" << ip << "]: " << "Client with IP " << ip.toString() << " and port " << port << " has disconnected from the server.";
 					mtx_messages.lock();
 					aMensajes.push_back(ss.str());
 					mtx_messages.unlock();
@@ -134,14 +152,14 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 				sf::Uint32 temp;
 				unsigned short port;
 				Cell clientPosition;
-				pack >> auxClientSalt >> auxServerSalt >> temp >> port >> clientPosition.x >> clientPosition.y;
+				pack >> temp >> port >> clientPosition.x >> clientPosition.y;
 				if (AreSaltsValid(auxServerSalt, auxClientSalt))
 				{
 					sf::IpAddress ip = sf::IpAddress(temp);
 
 					std::cout << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPosition.x << "," << clientPosition.y  << ")." << std::endl;
 					stringstream ss;
-					ss << "[" << ip.toString() << ":" << ip << "]:	" << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPosition.x << "," << clientPosition.y << ").";
+					ss << "[" << ip.toString() << ":" << port << "]: " << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPosition.x << "," << clientPosition.y << ").";
 					mtx_messages.lock();
 					aMensajes.push_back(ss.str());
 					mtx_messages.unlock();
@@ -201,6 +219,7 @@ void TimerCheck()
 	}
 
 }
+#pragma endregion
 
 int main()
 {

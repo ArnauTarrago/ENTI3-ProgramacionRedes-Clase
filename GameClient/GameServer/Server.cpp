@@ -8,14 +8,7 @@
 #include "shared.h"
 #include <GameInfo.h>
 
-/* Dubtes
--Quina informació posem pels que s'estan conectant?
--Si client diu algo, comprovem que esta tant en el map de conectats com els de conectant?
--"Reservar espai"?
-*/
-
-
-
+#pragma region Data Structures
 struct PreInfo
 {
 	PreInfo(sf::IpAddress _ip, unsigned short _port) : ip(_ip), port(_port) {};
@@ -37,17 +30,32 @@ struct Client
 	Cell position;
 
 	Client(sf::IpAddress _ip, unsigned short _port, long long int _clientSalt, long long int _serverSalt, Timer _inactivityTimer, Cell _position) 
-		: ip(_ip), port(_port), clientSalt(_clientSalt), serverSalt(_serverSalt), inactivityTimer(_inactivityTimer), position(_position){};
+		: ip(_ip), port(_port), clientSalt(_clientSalt), serverSalt(_serverSalt), inactivityTimer(_inactivityTimer) {position.x = _position.x; position.y = _position.y; };
 
 };
 
-// --- Global variables ---
+// Network Manager ??
+struct CriticalPacket
+{
+	COMMUNICATION_HEADER_SERVER_TO_CLIENT header;
+	sf::Packet pack;
+	// ...
+};
+
+// --------------
+#pragma endregion
+
+#pragma region Global Variables
 sf::UdpSocket udpSocket;
 sf::UdpSocket::Status socketStatus = sf::UdpSocket::Status::NotReady;
 std::map<std::string, PreInfo> connectingClientsList;
-std::map<std::string, Client> connectedClientsList;
+std::map<int, Client> connectedClientsList;
+std::map<long int, CriticalPacket> listMsgNonAck;
+Timer resendUnvalidatedPacketsTimer;
+long int localPacketID = 0;
+int localClientID = 0;
 bool executing;
-// -----------------------
+#pragma endregion
 
 #pragma region Operations
 
@@ -55,11 +63,35 @@ void DisconnectClient(sf::IpAddress ip, unsigned short port)
 {
 	sf::Packet pack;
 
-	for (std::pair<std::string, Client> element : connectedClientsList) {
+	for (std::pair<int, Client> element : connectedClientsList) {
 		pack.clear();
 		pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::DISCONNECT_CLIENT_HAS_DISCONNECTED << element.second.clientSalt << element.second.serverSalt << ip.toInteger() << port;
 		socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
 	}
+}
+
+int GenerateChallenge()
+{
+	/*std::random_device rd;
+
+	std::mt19937_64 e2(rd());
+
+	std::uniform_int_distribution<int> dist(std::llround(std::pow(2, 5)), std::llround(std::pow(2, 6)));
+
+	return dist(e2);*/
+
+	return 5;
+}
+
+int GenerateClientID()
+{
+	int auxClientID = localClientID;
+	localClientID++;
+	if (localClientID == numeric_limits<int>::max())
+	{
+		localClientID = 0;
+	}
+	return auxClientID;
 }
 #pragma endregion
 
@@ -79,17 +111,17 @@ bool AreConnectingClientSaltsValid(long long int auxServerSalt, std::string clie
 	return IsConnectingClientServerSaltValid(clientID, auxServerSalt) && IsConnectingClientClientSaltValid(clientID, auxClientSalt);
 }
 
-bool IsConnectedClientClientSaltValid(std::string clientID, long long int auxClientSalt)
+bool IsConnectedClientClientSaltValid(int clientID, long long int auxClientSalt)
 {
 	return auxClientSalt == connectedClientsList.at(clientID).clientSalt;
 }
 
-bool IsConnectedClientServerSaltValid(std::string clientID, long long int auxServerSalt)
+bool IsConnectedClientServerSaltValid(int clientID, long long int auxServerSalt)
 {
 	return auxServerSalt == connectedClientsList.at(clientID).serverSalt;
 }
 
-bool AreConnectedClientSaltsValid(long long int auxServerSalt, std::string clientID, long long int auxClientSalt)
+bool AreConnectedClientSaltsValid(long long int auxServerSalt, int clientID, long long int auxClientSalt)
 {
 	return IsConnectedClientServerSaltValid(clientID, auxServerSalt) && IsConnectedClientClientSaltValid(clientID, auxClientSalt);
 }
@@ -99,21 +131,27 @@ bool IsChallengeResponseValid(int challenge, int challengeResponse)
 	return challengeResponse == challenge + 1;
 }
 
+bool IsClientIdInt(COMMUNICATION_HEADER_CLIENT_TO_SERVER header)
+{
+	switch (header)
+	{
+	case HELLO:
+	case CHALLENGE_R:
+		return false;
+		break;
+	case CHAT_CLIENT_TO_SERVER:
+	case DISCONNECT_CLIENT:
+	case ACKNOWLEDGE:
+		return true;
+		break;
+	default:
+		return false;
+		break;
+	}
+}
 #pragma endregion
 
-int GenerateChallenge()
-{
-	/*std::random_device rd;
-
-	std::mt19937_64 e2(rd());
-
-	std::uniform_int_distribution<int> dist(std::llround(std::pow(2, 5)), std::llround(std::pow(2, 6)));
-
-	return dist(e2);*/
-
-	return 5;
-}
-
+#pragma region Threads
 void commands() {
 	while (executing) {
 		std::string input;
@@ -137,9 +175,9 @@ void TimerCheck()
 {
 	while (executing)
 	{
-		for (std::map<std::string, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end();)
+		for (std::map<int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end();)
 		{
-			if (it->second.inactivityTimer.elapsedSeconds() > TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
+			if (it->second.inactivityTimer.elapsedSeconds() >= TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
 			{
 				std::cout << "Client with IP: " << it->second.ip.toString() << " and port " << it->second.port << " has been disconnected for inactivity. " << std::endl;
 				sf::String auxClientID = it->second.ip.toString() + ":" + std::to_string(it->second.port);
@@ -155,7 +193,7 @@ void TimerCheck()
 
 		for (std::map<std::string, PreInfo>::iterator it = connectingClientsList.begin(); it != connectingClientsList.end();)
 		{
-			if (it->second.inactivityTimer.elapsedSeconds() > TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_DURING_CONNECTION_IN_SECONDS)
+			if (it->second.inactivityTimer.elapsedSeconds() >= TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_DURING_CONNECTION_IN_SECONDS)
 			{
 				std::cout << "Client with IP: " << it->second.ip.toString() << " and port " << it->second.port << " has been disconnected for inactivity. " << std::endl;
 				sf::String auxClientID = it->second.ip.toString() + ":" + std::to_string(it->second.port);
@@ -165,6 +203,16 @@ void TimerCheck()
 			{
 				++it;
 			}
+		}
+
+		if (resendUnvalidatedPacketsTimer.elapsedMilliseconds() >= TIMER_RESEND_CRITICAL_PACKETS_IN_MILISECONDS)
+		{
+			for (std::map<long int, CriticalPacket>::iterator it = listMsgNonAck.begin(); it != listMsgNonAck.end();)
+			{
+				
+			}
+
+			resendUnvalidatedPacketsTimer.start();
 		}
 	}
 	
@@ -194,69 +242,90 @@ void receive() {
 				std::string message;
 				auxCommHeader = (COMMUNICATION_HEADER_CLIENT_TO_SERVER)msg;
 				long long int auxClientSalt, auxServerSalt;
+				int auxClientID;
+				std::string auxClientIpPort;
 
-				// WE CHECK IF THE CLIENT EXISTS IN THE MAP
-				std::string auxClientID = ip.toString() + ":" + std::to_string(port);
-				if (connectedClientsList.find(auxClientID) == connectedClientsList.end()) // IF IT DOESN'T EXIST
+				pack >> auxClientSalt >> auxServerSalt;
+
+				if (IsClientIdInt(auxCommHeader))
 				{
-					if (connectingClientsList.find(auxClientID) == connectingClientsList.end()) // IF IT DOESN'T EXIST
-					{
-						// IF CLIENT DOESN'T EXIST, WE INSERT IT INTO THE MAP
-						connectingClientsList.insert(std::pair<std::string, PreInfo>(auxClientID, PreInfo(ip, port)));
-					}					
+					pack >> auxClientID;
 				}
+				else
+				{
+					auxClientIpPort = ip.toString() + ":" + std::to_string(port);
+				}
+				// WE CHECK IF THE CLIENT EXISTS IN THE MAP
+				
+				//if (connectedClientsList.find(auxClientID) == connectedClientsList.end()) // IF IT DOESN'T EXIST
+				//{
+				//	if (connectingClientsList.find(auxClientID) == connectingClientsList.end()) // IF IT DOESN'T EXIST
+				//	{
+				//		// IF CLIENT DOESN'T EXIST, WE INSERT IT INTO THE MAP
+				//		connectingClientsList.insert(std::pair<std::string, PreInfo>(auxClientID, PreInfo(ip, port)));
+				//	}					
+				//}
 
 				switch (auxCommHeader)
 				{
 				case HELLO:
 				{
-					pack >> connectingClientsList.at(auxClientID).clientSalt;
-					std::cout << "Client with IP: " << ip.toString() << " and port " << port << " has sent a HELLO message with salt: " << connectingClientsList.at(auxClientID).clientSalt << std::endl;
+					connectingClientsList.at(auxClientIpPort).clientSalt = auxClientSalt;
+
+					std::cout << "Client with IP: " << ip.toString() << " and port " << port << " has sent a HELLO message with salt: " << connectingClientsList.at(auxClientIpPort).clientSalt << std::endl;
 					pack.clear();
-					connectingClientsList.at(auxClientID).serverSalt = Utilities::GenerateSalt();
-					connectingClientsList.at(auxClientID).challenge = GenerateChallenge();
-					connectingClientsList.at(auxClientID).inactivityTimer.start();
-					pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::CHALLENGE << connectingClientsList.at(auxClientID).clientSalt << connectingClientsList.at(auxClientID).serverSalt << connectingClientsList.at(auxClientID).challenge;
+					connectingClientsList.at(auxClientIpPort).serverSalt = Utilities::GenerateSalt();
+					connectingClientsList.at(auxClientIpPort).challenge = GenerateChallenge();
+					connectingClientsList.at(auxClientIpPort).inactivityTimer.start();
+					pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::CHALLENGE << connectingClientsList.at(auxClientIpPort).clientSalt << connectingClientsList.at(auxClientIpPort).serverSalt << connectingClientsList.at(auxClientIpPort).challenge;
 					socketStatus = udpSocket.send(pack, ip, port);
 				}
 					break;
 				case CHALLENGE_R:
 					int challengeResponse;
 
-					pack >> auxClientSalt >> auxServerSalt >> challengeResponse;					
-					if (AreConnectingClientSaltsValid(auxServerSalt, auxClientID, auxClientSalt))
-					{
-						
-
+					pack >> challengeResponse;					
+					if (AreConnectingClientSaltsValid(auxServerSalt, auxClientIpPort, auxClientSalt))
+					{					
 						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a CHALLENGE_R message with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
-						if (IsChallengeResponseValid(connectingClientsList.at(auxClientID).challenge, challengeResponse))
+						if (IsChallengeResponseValid(connectingClientsList.at(auxClientIpPort).challenge, challengeResponse))
 						{
 							std::cout << "[CHALLENGE RESPONSE VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a CHALLENGE_R message with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
 							pack.clear();
 
-							Cell position = Cell(1, 1);
+							// TODO: MAKE STARTING POSITION RANDOM
+							Cell position;
+							position.x = 1;
+							position.y = 1;
+
+							// WE GENERATE A NEW CLIENT ID
+							int auxNewClientID = GenerateClientID();
 
 							// WE TELL THE CURRENTLY CONNECTED CLIENTS THAT A NEW CLIENT HAS CONNECTED
-							for (std::pair<std::string, Client> element : connectedClientsList) {
+							for (std::pair<int, Client> element : connectedClientsList) {
 								pack.clear();
-								pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::NEW_CLIENT << element.second.clientSalt << element.second.serverSalt << ip.toInteger() << port << position.x << position.y;
+								pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::NEW_CLIENT << element.second.clientSalt << element.second.serverSalt << connectingClientsList.at(auxClientIpPort).ip.toInteger() << connectingClientsList.at(auxClientIpPort).port << position.x << position.y;
 								socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
 							}
 
 							// WE CREATE A NEW CLIENT AND PUT IT INTO THE CONNECTED CLIENTS MAP
 							Timer inactivityTimer;
 							inactivityTimer.start();							
-							Client newClient = Client(connectingClientsList.at(auxClientID).ip, connectingClientsList.at(auxClientID).port, connectingClientsList.at(auxClientID).clientSalt, connectingClientsList.at(auxClientID).serverSalt, inactivityTimer, position);
-							connectedClientsList.insert(std::pair<std::string, Client>(auxClientID, newClient));
+							Client newClient = Client(connectingClientsList.at(auxClientIpPort).ip, connectingClientsList.at(auxClientIpPort).port, connectingClientsList.at(auxClientIpPort).clientSalt, connectingClientsList.at(auxClientIpPort).serverSalt, inactivityTimer, position);
+							connectedClientsList.insert(std::pair<int, Client>(auxNewClientID, newClient));
 							
-							pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::WELCOME << connectingClientsList.at(auxClientID).clientSalt << connectingClientsList.at(auxClientID).serverSalt;
+							pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::WELCOME << connectingClientsList.at(auxClientIpPort).clientSalt << connectingClientsList.at(auxClientIpPort).serverSalt << connectedClientsList.size();
 
-
-							
-							// WE ERASE THE ENTRY FROM THE CONNECTING CLIENTS MAP
-							connectingClientsList.erase(auxClientID);
+							for (std::pair<int, Client> element : connectedClientsList) {
+								pack << element.first << element.second.position.x << element.second.position.y;								
+							}
 
 							socketStatus = udpSocket.send(pack, ip, port);
+							
+							// WE ERASE THE ENTRY FROM THE CONNECTING CLIENTS MAP
+							connectingClientsList.erase(auxClientIpPort);
+
+
 						}
 						else
 						{
@@ -270,15 +339,11 @@ void receive() {
 					break;
 				case CHAT_CLIENT_TO_SERVER:
 				{
-
-
 					Client connectedClient = connectedClientsList.at(auxClientID);
 
-					pack >> auxClientSalt >> auxServerSalt >> message;
+					pack >> message;
 					if (AreConnectedClientSaltsValid(auxServerSalt, auxClientID, auxClientSalt))
 					{
-
-
 						// RESET THE INACTIVITY TIMER
 						connectedClient.inactivityTimer.start();
 
@@ -286,7 +351,7 @@ void receive() {
 
 						// WE SEND THE PACK TO ALL CONNECTED CLIENTS
 						// FOR NOW, THIS ALSO SENDS THE PACKET TO THE ORIGINAL CLIENT SENDER
-						for (std::pair<std::string, Client> element : connectedClientsList) {
+						for (std::pair<int, Client> element : connectedClientsList) {
 							if (element.second.ip != ip || element.second.port != port) {
 								pack.clear();
 								pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::CHAT_SERVER_TO_CLIENT << element.second.clientSalt << element.second.serverSalt << ip.toInteger() << sf::Uint32(port) << message;
@@ -301,7 +366,6 @@ void receive() {
 				}
 					break;
 				case DISCONNECT_CLIENT:
-					pack >> auxClientSalt >> auxServerSalt;
 					if (AreConnectedClientSaltsValid(auxServerSalt, auxClientID, auxClientSalt))
 					{
 						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a DISCONNECT message with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
@@ -314,6 +378,21 @@ void receive() {
 						std::cout << "[SALT INVALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a DISCONNECT message with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
 					}
 					break;
+				case ACKNOWLEDGE:
+					sf::Int32 packetID;
+
+					pack >> packetID;
+					if (AreConnectedClientSaltsValid(auxServerSalt, auxClientID, auxClientSalt))
+					{
+						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent an ACKNOWLEDGE message with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
+
+						listMsgNonAck.erase(packetID);
+					}
+					else
+					{
+						std::cout << "[SALT INVALID] Client with IP: " << ip.toString() << " and port " << port << " has sent an ACKNOWLEDGE message with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
+					}
+					break;
 				default:
 					break;
 				}
@@ -321,6 +400,7 @@ void receive() {
 		}
 	}
 }
+#pragma endregion
 
 int main()
 {
@@ -330,6 +410,8 @@ int main()
 	std::thread tCommands(&commands);
 	std::thread tReceive(&receive);
 	std::thread tTimerCheck(&TimerCheck);
+
+	resendUnvalidatedPacketsTimer.start();
 
 	while (executing)
 	{
@@ -342,7 +424,7 @@ int main()
 	tTimerCheck.join();
 
 	sf::Packet pack;
-	for (std::map<std::string, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end(); it++)
+	for (std::map<int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end(); it++)
 	{
 		pack.clear();
 		pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::DISCONNECT_SERVER << it->second.clientSalt << it->second.serverSalt;
