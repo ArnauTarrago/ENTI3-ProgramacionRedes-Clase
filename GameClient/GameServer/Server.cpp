@@ -11,7 +11,7 @@
 #pragma region Data Structures
 struct PreInfo
 {
-	PreInfo(sf::IpAddress _ip, unsigned short _port) : ip(_ip), port(_port) {};
+	PreInfo(sf::IpAddress _ip, unsigned short _port) : ip(_ip), port(_port) { clientSalt = 0; serverSalt = 0; inactivityTimer.start(); challenge = 0; };
 	sf::IpAddress ip;
 	unsigned short port;
 	long long int clientSalt;
@@ -34,15 +34,10 @@ struct Client
 
 };
 
-// Network Manager ??
 struct CriticalPacket
 {
-	COMMUNICATION_HEADER_SERVER_TO_CLIENT header;
 	sf::Packet pack;
-	// ...
 };
-
-// --------------
 #pragma endregion
 
 #pragma region Global Variables
@@ -175,37 +170,38 @@ void TimerCheck()
 {
 	while (executing)
 	{
-		for (std::map<int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end();)
-		{
-			if (it->second.inactivityTimer.elapsedSeconds() >= TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
-			{
-				std::cout << "Client with IP: " << it->second.ip.toString() << " and port " << it->second.port << " has been disconnected for inactivity. " << std::endl;
-				sf::String auxClientID = it->second.ip.toString() + ":" + std::to_string(it->second.port);
+		//for (std::map<int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end();)
+		//{
+		//	if (it->second.inactivityTimer.elapsedSeconds() > TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
+		//	{
+		//		std::cout << it->second.inactivityTimer.elapsedSeconds() << std::endl;
+		//		std::cout << "Client with IP: " << it->second.ip.toString() << " and port " << it->second.port << " has been disconnected for inactivity. " << std::endl;
 
-				DisconnectClient(it->second.ip, it->second.port);
-				it = connectedClientsList.erase(it);
-			}
-			else
-			{
-				++it;
-			}			
-		}
+		//		DisconnectClient(it->second.ip, it->second.port);
+		//		it = connectedClientsList.erase(it);
+		//	}
+		//	else
+		//	{
+		//		++it;
+		//	}			
+		//}
 
-		for (std::map<std::string, PreInfo>::iterator it = connectingClientsList.begin(); it != connectingClientsList.end();)
-		{
-			if (it->second.inactivityTimer.elapsedSeconds() >= TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_DURING_CONNECTION_IN_SECONDS)
-			{
-				std::cout << "Client with IP: " << it->second.ip.toString() << " and port " << it->second.port << " has been disconnected for inactivity. " << std::endl;
-				sf::String auxClientID = it->second.ip.toString() + ":" + std::to_string(it->second.port);
-				it = connectingClientsList.erase(it);
-			}
-			else
-			{
-				++it;
-			}
-		}
+		//for (std::map<std::string, PreInfo>::iterator it = connectingClientsList.begin(); it != connectingClientsList.end();)
+		//{
+		//	if (it->second.inactivityTimer.elapsedSeconds() > TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_DURING_CONNECTION_IN_SECONDS)
+		//	{
+		//		std::cout << it->second.inactivityTimer.elapsedSeconds() << std::endl;
+		//		std::cout << "Client with IP: " << it->second.ip.toString() << " and port " << it->second.port << " has been disconnected for inactivity. " << std::endl;
+		//		sf::String auxClientID = it->second.ip.toString() + ":" + std::to_string(it->second.port);
+		//		it = connectingClientsList.erase(it);
+		//	}
+		//	else
+		//	{
+		//		//++it;
+		//	}
+		//}
 
-		if (resendUnvalidatedPacketsTimer.elapsedMilliseconds() >= TIMER_RESEND_CRITICAL_PACKETS_IN_MILISECONDS)
+		/*if (resendUnvalidatedPacketsTimer.elapsedMilliseconds() >= TIMER_RESEND_CRITICAL_PACKETS_IN_MILISECONDS)
 		{
 			for (std::map<long int, CriticalPacket>::iterator it = listMsgNonAck.begin(); it != listMsgNonAck.end();)
 			{
@@ -213,7 +209,7 @@ void TimerCheck()
 			}
 
 			resendUnvalidatedPacketsTimer.start();
-		}
+		}*/
 	}
 	
 }
@@ -250,21 +246,25 @@ void receive() {
 				if (IsClientIdInt(auxCommHeader))
 				{
 					pack >> auxClientID;
+					// WE CHECK IF THE CLIENT EXISTS IN THE MAP
+					if (connectedClientsList.find(auxClientID) == connectedClientsList.end())
+					{
+						// TODO: ASK QUESTION: WHAT HAPPENS IF THE CLIENT ISN'T IN THE LIST OF CONNECTED CLIENTS?
+						//return;
+					}
 				}
 				else
 				{
 					auxClientIpPort = ip.toString() + ":" + std::to_string(port);
+					// WE CHECK IF THE CLIENT EXISTS IN THE MAP
+					if (connectingClientsList.find(auxClientIpPort) == connectingClientsList.end()) // if it doesn't exist
+					{
+						// if client doesn't exist, we insert it into the map
+						connectingClientsList.insert(std::pair<std::string, PreInfo>(auxClientIpPort, PreInfo(ip, port)));
+					}
 				}
-				// WE CHECK IF THE CLIENT EXISTS IN THE MAP
 				
-				//if (connectedClientsList.find(auxClientID) == connectedClientsList.end()) // IF IT DOESN'T EXIST
-				//{
-				//	if (connectingClientsList.find(auxClientID) == connectingClientsList.end()) // IF IT DOESN'T EXIST
-				//	{
-				//		// IF CLIENT DOESN'T EXIST, WE INSERT IT INTO THE MAP
-				//		connectingClientsList.insert(std::pair<std::string, PreInfo>(auxClientID, PreInfo(ip, port)));
-				//	}					
-				//}
+				
 
 				switch (auxCommHeader)
 				{
@@ -306,7 +306,15 @@ void receive() {
 								pack.clear();
 								pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::NEW_CLIENT << element.second.clientSalt << element.second.serverSalt << connectingClientsList.at(auxClientIpPort).ip.toInteger() << connectingClientsList.at(auxClientIpPort).port << position.x << position.y;
 								socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
+								pack.clear();
 							}
+
+							pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::WELCOME << connectingClientsList.at(auxClientIpPort).clientSalt << connectingClientsList.at(auxClientIpPort).serverSalt << auxNewClientID << connectedClientsList.size();
+							for (std::pair<int, Client> element : connectedClientsList) {
+								pack << element.first << element.second.position.x << element.second.position.y;
+							}
+							socketStatus = udpSocket.send(pack, ip, port);
+							pack.clear();
 
 							// WE CREATE A NEW CLIENT AND PUT IT INTO THE CONNECTED CLIENTS MAP
 							Timer inactivityTimer;
@@ -314,18 +322,8 @@ void receive() {
 							Client newClient = Client(connectingClientsList.at(auxClientIpPort).ip, connectingClientsList.at(auxClientIpPort).port, connectingClientsList.at(auxClientIpPort).clientSalt, connectingClientsList.at(auxClientIpPort).serverSalt, inactivityTimer, position);
 							connectedClientsList.insert(std::pair<int, Client>(auxNewClientID, newClient));
 							
-							pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::WELCOME << connectingClientsList.at(auxClientIpPort).clientSalt << connectingClientsList.at(auxClientIpPort).serverSalt << connectedClientsList.size();
-
-							for (std::pair<int, Client> element : connectedClientsList) {
-								pack << element.first << element.second.position.x << element.second.position.y;								
-							}
-
-							socketStatus = udpSocket.send(pack, ip, port);
-							
 							// WE ERASE THE ENTRY FROM THE CONNECTING CLIENTS MAP
 							connectingClientsList.erase(auxClientIpPort);
-
-
 						}
 						else
 						{

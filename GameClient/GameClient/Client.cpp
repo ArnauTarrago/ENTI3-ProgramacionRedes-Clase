@@ -15,6 +15,7 @@ CLIENT_STATUS clientStatus = CLIENT_STATUS::DISCONNECTED;
 long long int serverSalt, clientSalt;
 sf::IpAddress serverIP;
 unsigned short serverPort;
+int clientID;
 
 sf::UdpSocket udpSocket;
 sf::UdpSocket::Status socketStatus = sf::UdpSocket::Status::NotReady;
@@ -100,12 +101,12 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 				{
 					int numberOfConnectedClients;
 
-					pack >> numberOfConnectedClients;
+					pack >> clientID >> numberOfConnectedClients;
 
 					for (size_t i = 0; i < numberOfConnectedClients; i++)
 					{
 						// TODO: UNPACK AND STORE OTHER CLIENTS' POSITIONS
-						// pack >> positionX >> positionY
+						// pack >> connectedClientID >> positionX >> positionY
 					}
 					std::cout << "Server has sent back a WELCOME with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
 					clientStatus = CLIENT_STATUS::CONNECTED;
@@ -321,7 +322,7 @@ int main()
 						}
 						else
 						{
-							pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::CHAT_CLIENT_TO_SERVER << clientSalt << serverSalt << chatMessage;
+							pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::CHAT_CLIENT_TO_SERVER << clientSalt << serverSalt << clientID << chatMessage;
 						}
 
 						socketStatus = udpSocket.send(pack, serverIP, serverPort);
