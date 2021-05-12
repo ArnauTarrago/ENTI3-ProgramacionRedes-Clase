@@ -182,7 +182,7 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 
 void TimerCheck()
 {
-	/*sf::Packet pack;
+	sf::Packet pack;
 
 	helloTimer.start();
 	inactivityTimer.start();
@@ -216,7 +216,7 @@ void TimerCheck()
 				clientStatus = CLIENT_STATUS::DISCONNECTED;
 			}
 		}
-	}*/
+	}
 
 }
 #pragma endregion

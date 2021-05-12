@@ -180,10 +180,10 @@ void TimerCheck()
 	std::list<int> auxConnectedClientsList;
 	std::list<std::string> auxConnectingClientsList;
 	while (executing)
-	{
+	{		
 		for (std::map<int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end(); ++it)
 		{
-			if (it->second.inactivityTimer.elapsedSeconds() > TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
+			if (it->second.inactivityTimer.elapsedSeconds() > TIMER_CLIENT_CHECK_FOR_SERVER_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
 			{
 				auxConnectedClientsList.push_back(it->first);
 				std::cout << "Client with IP: " << it->second.ip.toString() << " and port " << it->second.port << " has been disconnected for inactivity. " << std::endl;
@@ -198,8 +198,9 @@ void TimerCheck()
 		}
 		sv_semaphore.unlock();
 
-		connectedClientsList.clear();
+		auxConnectedClientsList.clear();
 
+		
 		for (std::map<std::string, PreInfo>::iterator it = connectingClientsList.begin(); it != connectingClientsList.end(); ++it)
 		{
 			if (it->second.inactivityTimer.elapsedSeconds() > TIMER_SERVER_CHECK_FOR_CLIENT_INACTIVITY_DURING_CONNECTION_IN_SECONDS)
@@ -267,7 +268,7 @@ void receive() {
 					if (connectedClientsList.find(auxClientID) == connectedClientsList.end())
 					{
 						// TODO: ASK QUESTION: WHAT HAPPENS IF THE CLIENT ISN'T IN THE LIST OF CONNECTED CLIENTS?
-						//return;
+						continue;
 					}
 				}
 				else
@@ -284,9 +285,6 @@ void receive() {
 						sv_semaphore.unlock();
 					}
 				}
-				
-				
-
 				switch (auxCommHeader)
 				{
 				case HELLO:
