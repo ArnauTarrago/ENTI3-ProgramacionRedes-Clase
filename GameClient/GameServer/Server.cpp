@@ -9,6 +9,8 @@
 #include <GameInfo.h>
 #include <list>
 #include <mutex>
+#include <iostream>
+#include <fstream>
 
 /*
 localhost
@@ -19,11 +21,12 @@ localhost
 #pragma region Data Structures
 struct PreInfo
 {
-	PreInfo(sf::IpAddress _ip, unsigned short _port, long long int _clientSalt, long long int _serverSalt, Timer _inactivityTimer, int _challenge) : ip(_ip), port(_port),clientSalt(_clientSalt) {};
+	PreInfo(sf::IpAddress _ip, unsigned short _port, unsigned long long int _clientSalt, unsigned long long int _serverSalt, Timer _inactivityTimer, int _challenge) :
+		ip(_ip), port(_port),clientSalt(_clientSalt), serverSalt(_serverSalt), inactivityTimer(_inactivityTimer), challenge(_challenge) {};
 	sf::IpAddress ip;
 	unsigned short port;
-	long long int clientSalt;
-	long long int serverSalt;
+	unsigned long long int clientSalt;
+	unsigned long long int serverSalt;
 	Timer inactivityTimer;
 	int challenge;
 };
@@ -32,19 +35,24 @@ struct Client
 {
 	sf::IpAddress ip;
 	unsigned short port;
-	long long int clientSalt;
-	long long int serverSalt;
+	unsigned long long int clientSalt;
+	unsigned long long int serverSalt;
+	unsigned int RTTInMilliseconds = 0;
 	Timer inactivityTimer;
 	Cell position;
 
-	Client(sf::IpAddress _ip, unsigned short _port, long long int _clientSalt, long long int _serverSalt, Timer _inactivityTimer, Cell _position) 
+	Client(sf::IpAddress _ip, unsigned short _port, unsigned long long int _clientSalt, unsigned long long int _serverSalt, Timer _inactivityTimer, Cell _position)
 		: ip(_ip), port(_port), clientSalt(_clientSalt), serverSalt(_serverSalt), inactivityTimer(_inactivityTimer) {position.x = _position.x; position.y = _position.y; };
 
 };
 
 struct CriticalPacket
 {
+	sf::IpAddress ip;
+	unsigned short port;
 	sf::Packet pack;
+	std::chrono::time_point<std::chrono::steady_clock> timeSent;
+	Timer resendTimer;
 };
 #pragma endregion
 
@@ -52,27 +60,16 @@ struct CriticalPacket
 sf::UdpSocket udpSocket;
 sf::UdpSocket::Status socketStatus = sf::UdpSocket::Status::NotReady;
 std::map<std::string, PreInfo> connectingClientsList;
-std::map<int, Client> connectedClientsList;
-std::map<long int, CriticalPacket> listMsgNonAck;
-Timer resendUnvalidatedPacketsTimer;
+std::map<unsigned int, Client> connectedClientsList;
+std::map<unsigned long int, CriticalPacket> listMsgNonAck;
+Timer timerSaveRTTToFile;
 std::mutex sv_semaphore;
-long int localPacketID = 0;
-int localClientID = 0;
+unsigned long int localPacketID = 0;
+unsigned int localClientID = 0;
 bool executing;
 #pragma endregion
 
 #pragma region Operations
-
-void SendDisconnectMessageToConnectedClients(sf::IpAddress ip, unsigned short port)
-{
-	sf::Packet pack;
-
-	for (std::pair<int, Client> element : connectedClientsList) {
-		pack.clear();
-		pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::DISCONNECT_CLIENT_HAS_DISCONNECTED << element.second.clientSalt << element.second.serverSalt << ip.toInteger() << port;
-		socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
-	}
-}
 
 int GenerateChallenge()
 {
@@ -87,15 +84,54 @@ int GenerateChallenge()
 	return 5;
 }
 
-int GenerateClientID()
+unsigned int GenerateClientID()
 {
-	int auxClientID = localClientID;
+	unsigned int auxClientID = localClientID;
 	localClientID++;
-	if (localClientID == numeric_limits<int>::max())
+	if (localClientID == numeric_limits<unsigned int>::max())
 	{
 		localClientID = 0;
 	}
 	return auxClientID;
+}
+
+void AddCriticalPacketToNonAcknowledgeList(sf::Packet _pack, sf::IpAddress _ip, unsigned short _port)
+{
+	CriticalPacket newCriticalPacket;
+	Timer timer;
+
+	newCriticalPacket.pack = _pack;
+	newCriticalPacket.ip = _ip;
+	newCriticalPacket.port = _port;	
+	newCriticalPacket.resendTimer = timer;
+	newCriticalPacket.timeSent = std::chrono::steady_clock::now();
+	newCriticalPacket.resendTimer.start();
+
+	listMsgNonAck.insert(std::pair<unsigned long, CriticalPacket>(localPacketID, newCriticalPacket));
+	localPacketID++;
+
+	if (localPacketID == numeric_limits<unsigned long>::max())
+	{
+		localPacketID = 0;
+	}
+}
+
+void SendDisconnectMessageToConnectedClients(sf::IpAddress ip, unsigned short port)
+{
+	sf::Packet pack;
+
+	for (std::pair<unsigned int, Client> element : connectedClientsList) {
+		// WE MAKE SURE TO NOT SEND THE DISCONNECT MESSAGE TO THE CLIENT THAT HAS JUST DISCONNECTED
+		// OTHERWISE, WE'LL BE WAITING FOR THE ACKNOWLEDGE MESSAGE FOREVER
+		if (element.second.ip != ip || element.second.port != port) 
+		{
+			pack.clear();
+			pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::DISCONNECT_CLIENT_HAS_DISCONNECTED << element.second.clientSalt << element.second.serverSalt << sf::Uint32(localPacketID) << ip.toInteger() << port;
+			AddCriticalPacketToNonAcknowledgeList(pack, ip, port);
+			socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
+		}
+
+	}
 }
 #pragma endregion
 
@@ -115,12 +151,12 @@ bool AreConnectingClientSaltsValid(long long int auxServerSalt, std::string clie
 	return IsConnectingClientServerSaltValid(clientID, auxServerSalt) && IsConnectingClientClientSaltValid(clientID, auxClientSalt);
 }
 
-bool IsConnectedClientClientSaltValid(int clientID, long long int auxClientSalt)
+bool IsConnectedClientClientSaltValid(unsigned int clientID, long long int auxClientSalt)
 {
 	return auxClientSalt == connectedClientsList.at(clientID).clientSalt;
 }
 
-bool IsConnectedClientServerSaltValid(int clientID, long long int auxServerSalt)
+bool IsConnectedClientServerSaltValid(unsigned int clientID, long long int auxServerSalt)
 {
 	return auxServerSalt == connectedClientsList.at(clientID).serverSalt;
 }
@@ -177,11 +213,11 @@ void commands() {
 
 void TimerCheck()
 {
-	std::list<int> auxConnectedClientsList;
+	std::list<unsigned int> auxConnectedClientsList;
 	std::list<std::string> auxConnectingClientsList;
 	while (executing)
 	{		
-		for (std::map<int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end(); ++it)
+		for (std::map<unsigned int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end(); ++it)
 		{
 			if (it->second.inactivityTimer.elapsedSeconds() > TIMER_CLIENT_CHECK_FOR_SERVER_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
 			{
@@ -192,14 +228,12 @@ void TimerCheck()
 		}
 
 		sv_semaphore.lock();
-		for (std::list<int>::iterator it = auxConnectedClientsList.begin(); it != auxConnectedClientsList.end(); ++it)
+		for (std::list<unsigned int>::iterator it = auxConnectedClientsList.begin(); it != auxConnectedClientsList.end(); ++it)
 		{			
 			connectedClientsList.erase(*it);
 		}
 		sv_semaphore.unlock();
-
 		auxConnectedClientsList.clear();
-
 		
 		for (std::map<std::string, PreInfo>::iterator it = connectingClientsList.begin(); it != connectingClientsList.end(); ++it)
 		{
@@ -216,18 +250,39 @@ void TimerCheck()
 			connectingClientsList.erase(*it);
 		}
 		sv_semaphore.unlock();
-
 		auxConnectingClientsList.clear();
 
-		/*if (resendUnvalidatedPacketsTimer.elapsedMilliseconds() >= TIMER_RESEND_CRITICAL_PACKETS_IN_MILISECONDS)
+		for (std::map<unsigned long int, CriticalPacket>::iterator it = listMsgNonAck.begin(); it != listMsgNonAck.end(); ++it)
 		{
-			for (std::map<long int, CriticalPacket>::iterator it = listMsgNonAck.begin(); it != listMsgNonAck.end();)
+			if (it->second.resendTimer.elapsedMilliseconds() >= TIMER_RESEND_CRITICAL_PACKETS_DURING_LOW_TRAFFIC_IN_MILLISECONDS)
 			{
-				
+				CriticalPacket auxPacket = it->second;
+				auxPacket.resendTimer.start();
+				auxPacket.timeSent = std::chrono::steady_clock::now();
+				socketStatus = udpSocket.send(auxPacket.pack, auxPacket.ip, auxPacket.port);
+				std::cout << "Resent critical packet with ID '" << it->first << "'." << std::endl;
 			}
+		}
 
-			resendUnvalidatedPacketsTimer.start();
-		}*/
+		if (timerSaveRTTToFile.elapsedSeconds() >= TIMER_SAVE_RTT_TO_FILE_IN_SECONDS)
+		{
+			if (connectedClientsList.size() > 0)
+			{
+				timerSaveRTTToFile.start();
+				ofstream myfile("RTTlogs.txt", std::ios::app);
+				if (myfile.is_open())
+				{
+					for (std::map<unsigned int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end(); ++it)
+					{
+						myfile << "[Client " << it->first << "]: RTT of " << it->second.RTTInMilliseconds << " ms.\n";
+					}
+					myfile << "--------------------------------------\n";
+					myfile.close();
+				}
+				else std::cout << "[ERROR]: UNABLE TO OPEN RTTlogs.txt FILE" << std::endl;
+			}
+			
+		}
 	}
 	
 }
@@ -256,7 +311,7 @@ void receive() {
 				std::string message;
 				auxCommHeader = (COMMUNICATION_HEADER_CLIENT_TO_SERVER)msg;
 				long long int auxClientSalt, auxServerSalt;
-				int auxClientID;
+				unsigned int auxClientID;
 				std::string auxClientIpPort;
 
 				pack >> auxClientSalt >> auxServerSalt;
@@ -317,18 +372,19 @@ void receive() {
 							position.y = 1;
 
 							// WE GENERATE A NEW CLIENT ID
-							int auxNewClientID = GenerateClientID();
+							unsigned int auxNewClientID = GenerateClientID();
 
 							// WE TELL THE CURRENTLY CONNECTED CLIENTS THAT A NEW CLIENT HAS CONNECTED
-							for (std::pair<int, Client> element : connectedClientsList) {
+							for (std::pair<unsigned int, Client> element : connectedClientsList) {
 								pack.clear();
-								pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::NEW_CLIENT << element.second.clientSalt << element.second.serverSalt << connectingClientsList.at(auxClientIpPort).ip.toInteger() << connectingClientsList.at(auxClientIpPort).port << position.x << position.y;
+								pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::NEW_CLIENT << element.second.clientSalt << element.second.serverSalt << sf::Uint32(localPacketID) << connectingClientsList.at(auxClientIpPort).ip.toInteger() << connectingClientsList.at(auxClientIpPort).port << position.x << position.y;
 								socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
+								AddCriticalPacketToNonAcknowledgeList(pack, element.second.ip, element.second.port);
 								pack.clear();
 							}
 
 							pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::WELCOME << connectingClientsList.at(auxClientIpPort).clientSalt << connectingClientsList.at(auxClientIpPort).serverSalt << auxNewClientID << connectedClientsList.size();
-							for (std::pair<int, Client> element : connectedClientsList) {
+							for (std::pair<unsigned int, Client> element : connectedClientsList) {
 								pack << element.first << element.second.position.x << element.second.position.y;
 							}
 							socketStatus = udpSocket.send(pack, ip, port);
@@ -340,7 +396,7 @@ void receive() {
 							Client newClient = Client(connectingClientsList.at(auxClientIpPort).ip, connectingClientsList.at(auxClientIpPort).port, connectingClientsList.at(auxClientIpPort).clientSalt, connectingClientsList.at(auxClientIpPort).serverSalt, inactivityTimer, position);
 
 							sv_semaphore.lock();
-							connectedClientsList.insert(std::pair<int, Client>(auxNewClientID, newClient));
+							connectedClientsList.insert(std::pair<unsigned int, Client>(auxNewClientID, newClient));
 							sv_semaphore.unlock();
 
 							// WE ERASE THE ENTRY FROM THE CONNECTING CLIENTS MAP
@@ -372,7 +428,7 @@ void receive() {
 
 						// WE SEND THE PACK TO ALL CONNECTED CLIENTS
 						// FOR NOW, THIS ALSO SENDS THE PACKET TO THE ORIGINAL CLIENT SENDER
-						for (std::pair<int, Client> element : connectedClientsList) {
+						for (std::pair<unsigned int, Client> element : connectedClientsList) {
 							if (element.second.ip != ip || element.second.port != port) {
 								pack.clear();
 								pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::CHAT_SERVER_TO_CLIENT << element.second.clientSalt << element.second.serverSalt << ip.toInteger() << sf::Uint32(port) << message;
@@ -391,8 +447,11 @@ void receive() {
 					{
 						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a DISCONNECT message with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
 						
-						SendDisconnectMessageToConnectedClients(ip, port);						
+						SendDisconnectMessageToConnectedClients(ip, port);			
+
+						sv_semaphore.lock();
 						connectedClientsList.erase(auxClientID);
+						sv_semaphore.unlock();
 					}
 					else
 					{
@@ -400,18 +459,23 @@ void receive() {
 					}
 					break;
 				case ACKNOWLEDGE:
-					sf::Int32 packetID;
+					sf::Uint32 tempPacketID;
+					unsigned long packetID;
 
-					pack >> packetID;
+					pack >> tempPacketID;
+					packetID = tempPacketID;
+
 					if (AreConnectedClientSaltsValid(auxServerSalt, auxClientID, auxClientSalt))
 					{
-						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent an ACKNOWLEDGE message with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
-
+						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent an ACKNOWLEDGE message of packet with ID '" << packetID << "' with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
+						connectedClientsList.at(auxClientID).RTTInMilliseconds =  std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - listMsgNonAck.at(packetID).timeSent).count();
+						sv_semaphore.lock();
 						listMsgNonAck.erase(packetID);
+						sv_semaphore.unlock();
 					}
 					else
 					{
-						std::cout << "[SALT INVALID] Client with IP: " << ip.toString() << " and port " << port << " has sent an ACKNOWLEDGE message with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
+						std::cout << "[SALT INVALID] Client with IP: " << ip.toString() << " and port " << port << " has sent an ACKNOWLEDGE message of packet with ID '" << packetID <<"' with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
 					}
 					break;
 				default:
@@ -432,7 +496,7 @@ int main()
 	std::thread tReceive(&receive);
 	std::thread tTimerCheck(&TimerCheck);
 
-	resendUnvalidatedPacketsTimer.start();
+	timerSaveRTTToFile.start();
 
 	while (executing)
 	{
@@ -445,7 +509,7 @@ int main()
 	tTimerCheck.join();
 
 	sf::Packet pack;
-	for (std::map<int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end(); it++)
+	for (std::map<unsigned int, Client>::iterator it = connectedClientsList.begin(); it != connectedClientsList.end(); it++)
 	{
 		pack.clear();
 		pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::DISCONNECT_SERVER << it->second.clientSalt << it->second.serverSalt;

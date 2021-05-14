@@ -15,7 +15,7 @@ CLIENT_STATUS clientStatus = CLIENT_STATUS::DISCONNECTED;
 long long int serverSalt, clientSalt;
 sf::IpAddress serverIP;
 unsigned short serverPort;
-int clientID;
+unsigned int clientID;
 
 sf::UdpSocket udpSocket;
 sf::UdpSocket::Status socketStatus = sf::UdpSocket::Status::NotReady;
@@ -132,11 +132,16 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 			break;
 			case DISCONNECT_CLIENT_HAS_DISCONNECTED:
 			{
-				sf::Uint32 temp;
+				sf::Uint32 temp, tempPacketID;
 				unsigned short port;
-				pack >> temp >> port;
+				pack >> tempPacketID >> temp >> port;
 				if (AreSaltsValid(auxServerSalt, auxClientSalt))
 				{
+					pack.clear();
+					//packetID = tempPacketID;
+					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::ACKNOWLEDGE << auxClientSalt << auxServerSalt << clientID << tempPacketID;
+					socketStatus = udpSocket.send(pack, serverIP, serverPort);
+
 					sf::IpAddress ip = sf::IpAddress(temp);
 
 					std::cout << "Client with IP " << ip.toString() << " and port " << port << " has disconnected from the server." << std::endl;
@@ -150,12 +155,19 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 			}
 			break;
 			case NEW_CLIENT:
-				sf::Uint32 temp;
+				sf::Uint32 temp, tempPacketID;
+				unsigned long packetID;
 				unsigned short port;
 				Cell clientPosition;
-				pack >> temp >> port >> clientPosition.x >> clientPosition.y;
+
+				pack >> tempPacketID >> temp >> port >> clientPosition.x >> clientPosition.y;
 				if (AreSaltsValid(auxServerSalt, auxClientSalt))
 				{
+					pack.clear();
+					//packetID = tempPacketID;
+					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::ACKNOWLEDGE << auxClientSalt << auxServerSalt << clientID << tempPacketID;
+					socketStatus = udpSocket.send(pack, serverIP, serverPort);
+
 					sf::IpAddress ip = sf::IpAddress(temp);
 
 					std::cout << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPosition.x << "," << clientPosition.y  << ")." << std::endl;
@@ -315,7 +327,7 @@ int main()
 						std::string chatMessage = mensaje;
 						if (chatMessage == "exit" || chatMessage == ">exit")
 						{
-							pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::DISCONNECT_CLIENT << clientSalt << serverSalt;
+							pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::DISCONNECT_CLIENT << clientSalt << serverSalt << clientID;
 							std::cout << "Disconnecting from server." << std::endl;
 							clientStatus = CLIENT_STATUS::DISCONNECTED;
 						}
