@@ -33,6 +33,7 @@ long long int serverSalt, clientSalt;
 sf::IpAddress serverIP;
 unsigned short serverPort;
 unsigned int clientID;
+sf::Vector2f playerPosition;
 
 sf::UdpSocket udpSocket;
 sf::UdpSocket::Status socketStatus = sf::UdpSocket::Status::NotReady;
@@ -41,12 +42,26 @@ std::vector<std::string> aMensajes;
 
 Timer helloTimer, inactivityTimer;
 
-struct CriticalPacket
+//struct CriticalPacket
+//{
+//	COMMUNICATION_HEADER_CLIENT_TO_SERVER header;
+//};
+//std::map<int, CriticalPacket> listMsgNonAck;
+//int localPacketID = 0;
+unsigned int localMoveID = 0;
+
+#pragma region Operations
+unsigned int GenerateMoveID()
 {
-	COMMUNICATION_HEADER_CLIENT_TO_SERVER header;
-};
-std::map<int, CriticalPacket> listMsgNonAck;
-int localPacketID = 0;
+	unsigned int auxMoveID = localMoveID;
+	localMoveID++;
+	if (localMoveID == numeric_limits<unsigned int>::max())
+	{
+		localMoveID = 0;
+	}
+	return auxMoveID;
+}
+#pragma endregion
 
 #pragma region Validations
 bool IsClientSaltValid(long long int auxClientSalt)
@@ -196,7 +211,18 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 				std::cout << "Server disconnected, closing..." << std::endl;
 				clientStatus = CLIENT_STATUS::DISCONNECTED;
 				break;
+			case OKMOVE:
+				sf::Uint32 tempMoveID;
+				unsigned long moveID;
+				float playerPositionX, playerPositionY;
 
+				pack >> tempMoveID >> playerPositionX >> playerPositionY;
+				if (AreSaltsValid(auxServerSalt, auxClientSalt))
+				{
+					playerPosition.x = playerPositionX;
+					playerPosition.y = playerPositionY;
+				}
+				break;
 			default:
 				break;
 			}
@@ -358,6 +384,20 @@ void DrawGraphics()
 
 		// GAME SCREEN
 		sf::Event event;
+		sf::Vector2f position;
+		position.x = 0; position.y = 0;
+		shape.setFillColor(sf::Color::Blue);
+		shape.setFillColor(sf::Color(0, 0, 255, 255));
+		shape.setPosition(sf::Vector2f(playerPosition.x* SIZE, playerPosition.y* SIZE));
+		_window.draw(shape);
+
+		position.x = W_WINDOW_TITLE - 1; position.y = H_WINDOW_TITLE - 1;
+		shape.setFillColor(sf::Color::Green);
+		shape.setFillColor(sf::Color(255, 255, 0, 255));
+		shape.setPosition(sf::Vector2f(position.x* SIZE, position.y* SIZE));
+		_window.draw(shape);
+
+		_window.display();
 		bool playerMoved = false;
 
 		while (_window.pollEvent(event))
@@ -374,7 +414,7 @@ void DrawGraphics()
 				}
 				if (event.key.code == sf::Keyboard::Left)
 				{
-					std::cout << "LEFT\n";
+					std::cout << "LEFT\n";					
 				}
 				else if (event.key.code == sf::Keyboard::Up)
 				{
@@ -382,7 +422,10 @@ void DrawGraphics()
 				}
 				else if (event.key.code == sf::Keyboard::Right)
 				{
-					std::cout << "RIGTH\n";
+					std::cout << "RIGHT\n";
+					pack.clear();
+					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::MOVE << clientSalt << serverSalt << clientID << GenerateMoveID() << playerPosition.x + 1 << playerPosition.y;
+					socketStatus = udpSocket.send(pack, serverIP, serverPort);
 				}
 				else if (event.key.code == sf::Keyboard::Down)
 				{
@@ -405,20 +448,10 @@ void DrawGraphics()
 			}
 		}
 
-		sf::Vector2f position;
-		position.x = 0; position.y = 0;
-		shape.setFillColor(sf::Color::Blue);
-		shape.setFillColor(sf::Color(0, 0, 255, 255));
-		shape.setPosition(sf::Vector2f(position.x* SIZE, position.y* SIZE));
-		_window.draw(shape);
 
-		position.x = W_WINDOW_TITLE - 1; position.y = H_WINDOW_TITLE - 1;
-		shape.setFillColor(sf::Color::Green);
-		shape.setFillColor(sf::Color(255, 255, 0, 255));
-		shape.setPosition(sf::Vector2f(position.x* SIZE, position.y* SIZE));
-		_window.draw(shape);
 
-		_window.display();
+
+
 	}
 
 	
@@ -442,8 +475,10 @@ int main()
 	socketStatus = udpSocket.send(pack, serverIP, serverPort);
 
 	std::thread tReceive(&Receive, serverIP, serverPort);
-
 	std::thread tSend(&TimerCheck);
+
+	playerPosition.x = 0;
+	playerPosition.y = 0;
 
 	std::cout << "Awaiting connection with server, please wait..." << std::endl;
 	while (clientStatus == CLIENT_STATUS::CONNECTING)

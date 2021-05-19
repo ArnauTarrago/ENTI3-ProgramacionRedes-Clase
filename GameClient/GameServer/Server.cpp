@@ -182,6 +182,7 @@ bool IsClientIdInt(COMMUNICATION_HEADER_CLIENT_TO_SERVER header)
 	case CHAT_CLIENT_TO_SERVER:
 	case DISCONNECT_CLIENT:
 	case ACKNOWLEDGE:
+	case MOVE:
 		return true;
 		break;
 	default:
@@ -352,6 +353,7 @@ void receive() {
 					connectingClientsList.at(auxClientIpPort).challenge = GenerateChallenge();
 					pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::CHALLENGE << connectingClientsList.at(auxClientIpPort).clientSalt << connectingClientsList.at(auxClientIpPort).serverSalt << connectingClientsList.at(auxClientIpPort).challenge;
 					socketStatus = udpSocket.send(pack, ip, port);
+					pack.clear();
 				}
 					break;
 				case CHALLENGE_R:
@@ -476,6 +478,30 @@ void receive() {
 					else
 					{
 						std::cout << "[SALT INVALID] Client with IP: " << ip.toString() << " and port " << port << " has sent an ACKNOWLEDGE message of packet with ID '" << packetID <<"' with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
+					}
+					break;
+				case MOVE:
+					sf::Uint32 tempMoveID;
+					unsigned long moveID;
+
+					float positionX, positionY;
+
+					pack >> tempMoveID >> positionX >> positionY;
+					moveID = tempMoveID;
+
+					if (AreConnectedClientSaltsValid(auxServerSalt, auxClientID, auxClientSalt))
+					{
+						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a MOVE message of packet with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
+						pack.clear();
+						pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::OKMOVE << connectedClientsList.at(auxClientID).clientSalt << connectedClientsList.at(auxClientID).serverSalt << tempMoveID << positionX << positionY;
+						socketStatus = udpSocket.send(pack, ip, port);
+						pack.clear();
+						// TODO: Warn the other clients that a player has moved
+
+					}
+					else
+					{
+						std::cout << "[SALT INVALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a MOVE message of packet with ID '" << packetID << "' with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
 					}
 					break;
 				default:
