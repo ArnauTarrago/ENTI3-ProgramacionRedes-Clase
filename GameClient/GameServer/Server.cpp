@@ -54,6 +54,13 @@ struct CriticalPacket
 	std::chrono::time_point<std::chrono::steady_clock> timeSent;
 	Timer resendTimer;
 };
+
+struct UnvalidatedMovePacket
+{
+	unsigned int moveID;
+	float positionX;
+	float positionY;
+};
 #pragma endregion
 
 #pragma region Global Variables
@@ -62,7 +69,9 @@ sf::UdpSocket::Status socketStatus = sf::UdpSocket::Status::NotReady;
 std::map<std::string, PreInfo> connectingClientsList;
 std::map<unsigned int, Client> connectedClientsList;
 std::map<unsigned long int, CriticalPacket> listMsgNonAck;
+std::map<unsigned int,UnvalidatedMovePacket> listUnvalidatedMovePackets;
 Timer timerSaveRTTToFile;
+Timer timerValidatePlayerMoves;
 std::mutex sv_semaphore;
 unsigned long int localPacketID = 0;
 unsigned int localClientID = 0;
@@ -215,6 +224,7 @@ void commands() {
 void TimerCheck()
 {
 	std::list<unsigned int> auxConnectedClientsList;
+	std::list<unsigned int> auxUnvalidatedMovePacketsList;
 	std::list<std::string> auxConnectingClientsList;
 	while (executing)
 	{		
@@ -265,7 +275,7 @@ void TimerCheck()
 			}
 		}
 
-		if (timerSaveRTTToFile.elapsedSeconds() >= TIMER_SAVE_RTT_TO_FILE_IN_SECONDS)
+		if (timerSaveRTTToFile.elapsedSeconds() >= TIMER_SERVER_SAVE_RTT_TO_FILE_IN_SECONDS)
 		{
 			if (connectedClientsList.size() > 0)
 			{
@@ -281,9 +291,50 @@ void TimerCheck()
 					myfile.close();
 				}
 				else std::cout << "[ERROR]: UNABLE TO OPEN RTTlogs.txt FILE" << std::endl;
-			}
-			
+			}			
 		}
+
+		if (timerValidatePlayerMoves.elapsedMilliseconds() >= TIMER_SERVER_VALIDATE_PLAYER_MOVES_IN_MILLISECONDS)
+		{
+			sf::Packet pack;
+
+			for (std::map<unsigned int, UnvalidatedMovePacket>::iterator it = listUnvalidatedMovePackets.begin(); it != listUnvalidatedMovePackets.end(); ++it)
+			{
+				if (it->second.positionX < 0) it->second.positionX = 0;
+				if (it->second.positionY < 0) it->second.positionY = 0;
+
+				pack.clear();
+				pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::OKMOVE << connectedClientsList.at(it->first).clientSalt << connectedClientsList.at(it->first).serverSalt << it->second.moveID << it->second.positionX << it->second.positionY;
+				socketStatus = udpSocket.send(pack, connectedClientsList.at(it->first).ip, connectedClientsList.at(it->first).port);
+				pack.clear();
+
+				for (std::pair<unsigned int, Client> element : connectedClientsList) {
+					// WE MAKE SURE TO NOT SEND THE DISCONNECT MESSAGE TO THE CLIENT THAT HAS JUST DISCONNECTED
+					// OTHERWISE, WE'LL BE WAITING FOR THE ACKNOWLEDGE MESSAGE FOREVER
+					/*if (element.second.ip != connectedClientsList.at(it->first).ip || element.second.port != connectedClientsList.at(it->first).port)
+					{*/
+						pack.clear();
+						pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::CLIENT_HAS_MOVED << element.second.clientSalt << element.second.serverSalt << it->first << it->second.positionX << it->second.positionY;
+						//AddCriticalPacketToNonAcknowledgeList(pack, ip, port);
+						socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
+					//}
+
+				}
+
+				auxUnvalidatedMovePacketsList.push_back(it->first);
+			}
+
+			timerValidatePlayerMoves.start();
+		}
+
+		sv_semaphore.lock();
+		for (std::list<unsigned int>::iterator it = auxUnvalidatedMovePacketsList.begin(); it != auxUnvalidatedMovePacketsList.end(); ++it)
+		{
+			listUnvalidatedMovePackets.erase(*it);
+		}
+		sv_semaphore.unlock();
+
+		auxUnvalidatedMovePacketsList.clear();
 	}
 	
 }
@@ -303,7 +354,6 @@ void receive() {
 		if (socketStatus != sf::UdpSocket::Status::Done)
 		{
 			// TODO: WHAT DO WE HANDLE HERE?
-			std::cout << "Socket status is " << socketStatus << endl;
 		}
 		else
 		{
@@ -491,11 +541,25 @@ void receive() {
 
 					if (AreConnectedClientSaltsValid(auxServerSalt, auxClientID, auxClientSalt))
 					{
-						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a MOVE message of packet with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
-						pack.clear();
-						pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::OKMOVE << connectedClientsList.at(auxClientID).clientSalt << connectedClientsList.at(auxClientID).serverSalt << tempMoveID << positionX << positionY;
-						socketStatus = udpSocket.send(pack, ip, port);
-						pack.clear();
+						std::cout << "[SALT VALID] Client with IP: " << ip.toString() << " and port " << port << " has sent a MOVE message to position [" << positionX << "," << positionY << "] of packet with salt " << auxClientSalt << "/" << auxServerSalt << std::endl;
+						
+						// IF WE DON'T FIND A CLIENT WE CREATE THE MOVE PACKET, OTHERWISE WE ADD THE ACCUMULATED MOVE TO THE EXISTING MOVE PACKET
+						if (listUnvalidatedMovePackets.find(auxClientID) == listUnvalidatedMovePackets.end()) // NOT FOUND
+						{
+							UnvalidatedMovePacket auxMovePacket;
+							auxMovePacket.positionX = positionX;
+							auxMovePacket.positionY = positionY;
+							auxMovePacket.moveID = tempMoveID;
+
+							listUnvalidatedMovePackets.insert(std::pair<unsigned int, UnvalidatedMovePacket>(auxClientID, auxMovePacket));
+						}
+						else // FOUND
+						{
+							listUnvalidatedMovePackets.at(auxClientID).positionX = positionX;
+							listUnvalidatedMovePackets.at(auxClientID).positionY = positionY;
+						}
+
+
 						// TODO: Warn the other clients that a player has moved
 
 					}
@@ -523,6 +587,7 @@ int main()
 	std::thread tTimerCheck(&TimerCheck);
 
 	timerSaveRTTToFile.start();
+	timerValidatePlayerMoves.start();
 
 	while (executing)
 	{

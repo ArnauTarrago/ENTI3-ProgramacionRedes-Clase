@@ -28,6 +28,24 @@
 #define NUM_ENEMIES 5
 #define NUM_OBSTACLES_2x2 10
 
+#pragma region Data Structures
+
+struct Player
+{
+	float positionX;
+	float positionY;
+};
+
+
+//struct CriticalPacket
+//{
+//	COMMUNICATION_HEADER_CLIENT_TO_SERVER header;
+//};
+//std::map<int, CriticalPacket> listMsgNonAck;
+//int localPacketID = 0;
+#pragma endregion
+
+#pragma region Global Variables
 CLIENT_STATUS clientStatus = CLIENT_STATUS::DISCONNECTED;
 long long int serverSalt, clientSalt;
 sf::IpAddress serverIP;
@@ -40,15 +58,14 @@ sf::UdpSocket::Status socketStatus = sf::UdpSocket::Status::NotReady;
 std::mutex mtx_messages;
 std::vector<std::string> aMensajes;
 
-Timer helloTimer, inactivityTimer;
+Timer timerHello, timerInactivity, timerMove;
 
-//struct CriticalPacket
-//{
-//	COMMUNICATION_HEADER_CLIENT_TO_SERVER header;
-//};
-//std::map<int, CriticalPacket> listMsgNonAck;
-//int localPacketID = 0;
+float accumulatedPlayerMoveX = 0;
+float accumulatedPlayerMoveY = 0;
 unsigned int localMoveID = 0;
+
+std::map<unsigned int, Player> listOtherPlayers;
+#pragma endregion
 
 #pragma region Operations
 unsigned int GenerateMoveID()
@@ -105,8 +122,8 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 			auxCommHeader = (COMMUNICATION_HEADER_SERVER_TO_CLIENT)msg;
 
 			// WE RESET THE X SECONDS TIMER USED FOR CHECKING FOR INACTIVITY
-			if (clientStatus == CLIENT_STATUS::CONNECTING) helloTimer.start();
-			inactivityTimer.start();
+			if (clientStatus == CLIENT_STATUS::CONNECTING) timerHello.start();
+			timerInactivity.start();
 
 			pack >> auxClientSalt >> auxServerSalt;
 
@@ -198,7 +215,6 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 					socketStatus = udpSocket.send(pack, serverIP, serverPort);
 
 					sf::IpAddress ip = sf::IpAddress(temp);
-
 					std::cout << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPosition.x << "," << clientPosition.y  << ")." << std::endl;
 					stringstream ss;
 					ss << "[" << ip.toString() << ":" << port << "]: " << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPosition.x << "," << clientPosition.y << ").";
@@ -223,6 +239,26 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 					playerPosition.y = playerPositionY;
 				}
 				break;
+			case CLIENT_HAS_MOVED:
+				sf::Uint32 tempClientID;
+				float auxPositionX, auxPositionY;
+
+				pack >> tempClientID >> auxPositionX >> auxPositionY;
+
+				if (listOtherPlayers.find(tempClientID) == listOtherPlayers.end()) // NOT FOUND
+				{
+					Player auxPlayer;
+					auxPlayer.positionX = auxPositionX;
+					auxPlayer.positionY = auxPositionY;
+
+					listOtherPlayers.insert(std::pair<unsigned int, Player>(0, auxPlayer));
+				}
+				else // FOUND
+				{
+					listOtherPlayers.at(tempClientID).positionX = auxPositionX;
+					listOtherPlayers.at(tempClientID).positionY = auxPositionY;
+				}
+				break;
 			default:
 				break;
 			}
@@ -236,36 +272,49 @@ void TimerCheck()
 {
 	sf::Packet pack;
 
-	helloTimer.start();
-	inactivityTimer.start();
+	timerHello.start();
+	timerInactivity.start();
 	while (clientStatus != CLIENT_STATUS::DISCONNECTED)
 	{
 		if (clientStatus == CLIENT_STATUS::CONNECTING)
 		{
-			if (helloTimer.elapsedSeconds() > TIMER_CLIENT_CHECK_FOR_SERVER_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
+			if (timerHello.elapsedMilliseconds() > TIMER_CLIENT_RESEND_HELLO_WHILE_CONNECTING_IN_MILLISECONDS)
 			{
 				std::cout << "Resent HELLO to server with salt: " << clientSalt << std::endl;
 				pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::HELLO << clientSalt;
 				socketStatus = udpSocket.send(pack, serverIP, serverPort);
 
-				helloTimer.start();
+				timerHello.start();
 			}
-			if (inactivityTimer.elapsedSeconds() > TIMER_CLIENT_CHECK_FOR_SERVER_INACTIVITY_DURING_CONNECTION_IN_SECONDS)
+			if (timerInactivity.elapsedSeconds() > TIMER_CLIENT_CHECK_FOR_SERVER_INACTIVITY_DURING_CONNECTION_IN_SECONDS)
 			{
 				std::cout << "30 seconds have passed since the server responded, cancelling connection..." << std::endl;
-				helloTimer.stop();
-				inactivityTimer.stop();
+				timerHello.stop();
+				timerInactivity.stop();
 				clientStatus = CLIENT_STATUS::DISCONNECTED;
 			}
 		}
 		else if (clientStatus == CLIENT_STATUS::CONNECTED)
 		{
-			if (inactivityTimer.elapsedSeconds() > TIMER_CLIENT_CHECK_FOR_SERVER_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
+			if (timerInactivity.elapsedSeconds() > TIMER_CLIENT_CHECK_FOR_SERVER_INACTIVITY_WHILE_CONNECTED_IN_SECONDS)
 			{
 				std::cout << "60 seconds have passed since the server responded, disconnecting from server..." << std::endl;
-				helloTimer.stop();
-				inactivityTimer.stop();
+				timerHello.stop();
+				timerInactivity.stop();
 				clientStatus = CLIENT_STATUS::DISCONNECTED;
+			}
+			if (timerMove.elapsedMilliseconds() > TIMER_CLIENT_SEND_ACCUMULATED_MOVES_IN_MILLISECONDS)
+			{				
+				if (accumulatedPlayerMoveX != 0 || accumulatedPlayerMoveY != 0)
+				{
+					pack.clear();
+					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::MOVE << clientSalt << serverSalt << clientID << GenerateMoveID() << playerPosition.x + accumulatedPlayerMoveX << playerPosition.y + accumulatedPlayerMoveY;
+					socketStatus = udpSocket.send(pack, serverIP, serverPort);
+
+					accumulatedPlayerMoveX = 0;
+					accumulatedPlayerMoveY = 0;
+				}
+				timerMove.start();
 			}
 		}
 	}
@@ -391,6 +440,16 @@ void DrawGraphics()
 		shape.setPosition(sf::Vector2f(playerPosition.x* SIZE, playerPosition.y* SIZE));
 		_window.draw(shape);
 
+		for (size_t i = 0; i < listOtherPlayers.size(); i++)
+		{
+			position.x = listOtherPlayers.at(i).positionX;
+			position.y = listOtherPlayers.at(i).positionY;
+			shape.setFillColor(sf::Color::Red);
+			shape.setFillColor(sf::Color(255, 0, 0, 255));
+			shape.setPosition(sf::Vector2f(position.x* SIZE, position.y* SIZE));
+			_window.draw(shape);
+		}
+
 		position.x = W_WINDOW_TITLE - 1; position.y = H_WINDOW_TITLE - 1;
 		shape.setFillColor(sf::Color::Green);
 		shape.setFillColor(sf::Color(255, 255, 0, 255));
@@ -413,23 +472,20 @@ void DrawGraphics()
 					_window.close();
 				}
 				if (event.key.code == sf::Keyboard::Left)
-				{
-					std::cout << "LEFT\n";					
+				{		
+					accumulatedPlayerMoveX -= 1;
 				}
 				else if (event.key.code == sf::Keyboard::Up)
 				{
-					std::cout << "UP\n";
+					accumulatedPlayerMoveY -= 1;
 				}
 				else if (event.key.code == sf::Keyboard::Right)
 				{
-					std::cout << "RIGHT\n";
-					pack.clear();
-					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::MOVE << clientSalt << serverSalt << clientID << GenerateMoveID() << playerPosition.x + 1 << playerPosition.y;
-					socketStatus = udpSocket.send(pack, serverIP, serverPort);
+					accumulatedPlayerMoveX += 1;
 				}
 				else if (event.key.code == sf::Keyboard::Down)
 				{
-					std::cout << "DOWN\n";
+					accumulatedPlayerMoveY += 1;
 				}
 				break;
 			}
@@ -472,6 +528,7 @@ int main()
 	pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::HELLO << clientSalt;
 	clientStatus = CLIENT_STATUS::CONNECTING;
 
+	timerMove.start();
 	socketStatus = udpSocket.send(pack, serverIP, serverPort);
 
 	std::thread tReceive(&Receive, serverIP, serverPort);
