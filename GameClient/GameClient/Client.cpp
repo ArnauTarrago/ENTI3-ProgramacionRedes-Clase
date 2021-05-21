@@ -16,10 +16,6 @@
 #define W_WINDOW_PX 800
 #define H_WINDOW_PX 600
 
-///TAMAÑO EN CELDAS DE LA VENTANA
-#define W_WINDOW_TITLE 80
-#define H_WINDOW_TITLE 60
-
 ///TAMAÑO EN CELDAS DE UNA ZONA DE MAPA
 #define W_WINDOW_TITLE_PART 40
 #define H_WINDOW_TITLE_PART 30
@@ -51,7 +47,7 @@ long long int serverSalt, clientSalt;
 sf::IpAddress serverIP;
 unsigned short serverPort;
 unsigned int clientID;
-sf::Vector2f playerPosition;
+//sf::Vector2f playerPosition;
 
 sf::UdpSocket udpSocket;
 sf::UdpSocket::Status socketStatus = sf::UdpSocket::Status::NotReady;
@@ -64,7 +60,7 @@ float accumulatedPlayerMoveX = 0;
 float accumulatedPlayerMoveY = 0;
 unsigned int localMoveID = 0;
 
-std::map<unsigned int, Player> listOtherPlayers;
+std::map<unsigned int, Player> listPlayers;
 #pragma endregion
 
 #pragma region Operations
@@ -145,14 +141,42 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 			case WELCOME:
 				if (AreSaltsValid(auxServerSalt, auxClientSalt))
 				{
-					int numberOfConnectedClients;
+					float auxClientPositionX, auxClientPositionY;
+					unsigned int numberOfConnectedClients;
 
-					pack >> clientID >> numberOfConnectedClients;
+					pack >> clientID >> auxClientPositionX >> auxClientPositionY >> numberOfConnectedClients;
+
+					if (listPlayers.find(clientID) == listPlayers.end()) // NOT FOUND
+					{
+						Player auxPlayer;
+						auxPlayer.positionX = auxClientPositionX;
+						auxPlayer.positionY = auxClientPositionY;
+						listPlayers.insert(std::pair<unsigned int, Player>(clientID, auxPlayer));
+					}
+					else
+					{
+						listPlayers.at(clientID).positionX = auxClientPositionX;
+						listPlayers.at(clientID).positionY = auxClientPositionY;
+					}
 
 					for (size_t i = 0; i < numberOfConnectedClients; i++)
 					{
-						// TODO: UNPACK AND STORE OTHER CLIENTS' POSITIONS
-						// pack >> connectedClientID >> positionX >> positionY
+						unsigned int connectedClientID;
+						float connectedClientPositionX, connectedClientPositionY;
+
+						pack >> connectedClientID >> connectedClientPositionX >> connectedClientPositionY;
+						if (listPlayers.find(connectedClientID) == listPlayers.end()) // NOT FOUND
+						{
+							Player auxPlayer;
+							auxPlayer.positionX = connectedClientPositionX;
+							auxPlayer.positionY = connectedClientPositionY;
+							listPlayers.insert(std::pair<unsigned int, Player>(connectedClientID, auxPlayer));
+						}
+						else // FOUND
+						{
+							listPlayers.at(connectedClientID).positionX = connectedClientPositionX;
+							listPlayers.at(connectedClientID).positionY = connectedClientPositionY;
+						}
 					}
 					std::cout << "Server has sent back a WELCOME with salt: " << auxClientSalt << "/" << auxServerSalt << std::endl;
 					clientStatus = CLIENT_STATUS::CONNECTED;
@@ -201,23 +225,36 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 			}
 			break;
 			case NEW_CLIENT:
-				sf::Uint32 temp, tempPacketID;
+				sf::Uint32 temp, tempPacketID, newClientID;
 				unsigned long packetID;
 				unsigned short port;
-				Cell clientPosition;
+				float clientPositionX, clientPositionY;
 
-				pack >> tempPacketID >> temp >> port >> clientPosition.x >> clientPosition.y;
+				pack >> tempPacketID >> newClientID >> temp >> port >> clientPositionX >> clientPositionY;
 				if (AreSaltsValid(auxServerSalt, auxClientSalt))
 				{
+					if (listPlayers.find(newClientID) == listPlayers.end()) // NOT FOUND
+					{
+						Player auxPlayer;
+						auxPlayer.positionX = clientPositionX;
+						auxPlayer.positionY = clientPositionY;
+						listPlayers.insert(std::pair<unsigned int, Player>(newClientID, auxPlayer));
+					}
+					else // FOUND
+					{
+						listPlayers.at(newClientID).positionX = clientPositionX;
+						listPlayers.at(newClientID).positionY = clientPositionY;
+					}
+
 					pack.clear();
 					//packetID = tempPacketID;
 					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::ACKNOWLEDGE << auxClientSalt << auxServerSalt << clientID << tempPacketID;
 					socketStatus = udpSocket.send(pack, serverIP, serverPort);
 
 					sf::IpAddress ip = sf::IpAddress(temp);
-					std::cout << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPosition.x << "," << clientPosition.y  << ")." << std::endl;
+					std::cout << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPositionX << "," << clientPositionY << ")." << std::endl;
 					stringstream ss;
-					ss << "[" << ip.toString() << ":" << port << "]: " << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPosition.x << "," << clientPosition.y << ").";
+					ss << "[" << ip.toString() << ":" << port << "]: " << "Client with IP " << ip.toString() << " and port " << port << " has connected to the server in position: (" << clientPositionX << "," << clientPositionY << ").";
 					mtx_messages.lock();
 					aMensajes.push_back(ss.str());
 					mtx_messages.unlock();
@@ -235,8 +272,12 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 				pack >> tempMoveID >> playerPositionX >> playerPositionY;
 				if (AreSaltsValid(auxServerSalt, auxClientSalt))
 				{
-					playerPosition.x = playerPositionX;
-					playerPosition.y = playerPositionY;
+					if (listPlayers.find(clientID) != listPlayers.end()) // FOUND
+					{
+						listPlayers.at(clientID).positionX = playerPositionX;
+						listPlayers.at(clientID).positionY = playerPositionY;
+					}
+
 				}
 				break;
 			case CLIENT_HAS_MOVED:
@@ -244,20 +285,12 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 				float auxPositionX, auxPositionY;
 
 				pack >> tempClientID >> auxPositionX >> auxPositionY;
-
-				if (listOtherPlayers.find(tempClientID) == listOtherPlayers.end()) // NOT FOUND
+				if (listPlayers.find(tempClientID) != listPlayers.end()) // FOUND
 				{
-					Player auxPlayer;
-					auxPlayer.positionX = auxPositionX;
-					auxPlayer.positionY = auxPositionY;
+					listPlayers.at(tempClientID).positionX = auxPositionX;
+					listPlayers.at(tempClientID).positionY = auxPositionY;
+				}
 
-					listOtherPlayers.insert(std::pair<unsigned int, Player>(0, auxPlayer));
-				}
-				else // FOUND
-				{
-					listOtherPlayers.at(tempClientID).positionX = auxPositionX;
-					listOtherPlayers.at(tempClientID).positionY = auxPositionY;
-				}
 				break;
 			default:
 				break;
@@ -308,7 +341,7 @@ void TimerCheck()
 				if (accumulatedPlayerMoveX != 0 || accumulatedPlayerMoveY != 0)
 				{
 					pack.clear();
-					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::MOVE << clientSalt << serverSalt << clientID << GenerateMoveID() << playerPosition.x + accumulatedPlayerMoveX << playerPosition.y + accumulatedPlayerMoveY;
+					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::MOVE << clientSalt << serverSalt << clientID << GenerateMoveID() << listPlayers.at(clientID).positionX + accumulatedPlayerMoveX << listPlayers.at(clientID).positionY + accumulatedPlayerMoveY;
 					socketStatus = udpSocket.send(pack, serverIP, serverPort);
 
 					accumulatedPlayerMoveX = 0;
@@ -434,18 +467,20 @@ void DrawGraphics()
 		// GAME SCREEN
 		sf::Event event;
 		sf::Vector2f position;
-		position.x = 0; position.y = 0;
-		shape.setFillColor(sf::Color::Blue);
-		shape.setFillColor(sf::Color(0, 0, 255, 255));
-		shape.setPosition(sf::Vector2f(playerPosition.x* SIZE, playerPosition.y* SIZE));
-		_window.draw(shape);
 
-		for (size_t i = 0; i < listOtherPlayers.size(); i++)
-		{
-			position.x = listOtherPlayers.at(i).positionX;
-			position.y = listOtherPlayers.at(i).positionY;
-			shape.setFillColor(sf::Color::Red);
-			shape.setFillColor(sf::Color(255, 0, 0, 255));
+		for (std::pair<unsigned int, Player> element : listPlayers) {
+			position.x = element.second.positionX;
+			position.y = element.second.positionY;
+			if (element.first != clientID)
+			{				
+				shape.setFillColor(sf::Color::Red);
+				shape.setFillColor(sf::Color(255, 0, 0, 255));				
+			}
+			else
+			{
+				shape.setFillColor(sf::Color::Blue);
+				shape.setFillColor(sf::Color(0, 0, 255, 255));
+			}
 			shape.setPosition(sf::Vector2f(position.x* SIZE, position.y* SIZE));
 			_window.draw(shape);
 		}
@@ -503,11 +538,6 @@ void DrawGraphics()
 				_window.draw(shape);
 			}
 		}
-
-
-
-
-
 	}
 
 	
@@ -533,9 +563,6 @@ int main()
 
 	std::thread tReceive(&Receive, serverIP, serverPort);
 	std::thread tSend(&TimerCheck);
-
-	playerPosition.x = 0;
-	playerPosition.y = 0;
 
 	std::cout << "Awaiting connection with server, please wait..." << std::endl;
 	while (clientStatus == CLIENT_STATUS::CONNECTING)

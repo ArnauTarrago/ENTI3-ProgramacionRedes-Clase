@@ -301,12 +301,17 @@ void TimerCheck()
 			for (std::map<unsigned int, UnvalidatedMovePacket>::iterator it = listUnvalidatedMovePackets.begin(); it != listUnvalidatedMovePackets.end(); ++it)
 			{
 				if (it->second.positionX < 0) it->second.positionX = 0;
+				else if (it->second.positionX > W_WINDOW_TITLE - 1) it->second.positionX = W_WINDOW_TITLE - 1;
 				if (it->second.positionY < 0) it->second.positionY = 0;
+				else if (it->second.positionY > H_WINDOW_TITLE - 1) it->second.positionY = H_WINDOW_TITLE - 1;
 
 				pack.clear();
 				pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::OKMOVE << connectedClientsList.at(it->first).clientSalt << connectedClientsList.at(it->first).serverSalt << it->second.moveID << it->second.positionX << it->second.positionY;
 				socketStatus = udpSocket.send(pack, connectedClientsList.at(it->first).ip, connectedClientsList.at(it->first).port);
 				pack.clear();
+				
+				connectedClientsList.at(it->first).position.x = it->second.positionX;
+				connectedClientsList.at(it->first).position.y = it->second.positionY;
 
 				for (std::pair<unsigned int, Client> element : connectedClientsList) {
 					// WE MAKE SURE TO NOT SEND THE DISCONNECT MESSAGE TO THE CLIENT THAT HAS JUST DISCONNECTED
@@ -419,9 +424,8 @@ void receive() {
 							pack.clear();
 
 							// TODO: MAKE STARTING POSITION RANDOM
-							Cell position;
-							position.x = 1;
-							position.y = 1;
+							float positionX, positionY;
+							positionX = positionY = connectedClientsList.size();
 
 							// WE GENERATE A NEW CLIENT ID
 							unsigned int auxNewClientID = GenerateClientID();
@@ -429,26 +433,39 @@ void receive() {
 							// WE TELL THE CURRENTLY CONNECTED CLIENTS THAT A NEW CLIENT HAS CONNECTED
 							for (std::pair<unsigned int, Client> element : connectedClientsList) {
 								pack.clear();
-								pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::NEW_CLIENT << element.second.clientSalt << element.second.serverSalt << sf::Uint32(localPacketID) << connectingClientsList.at(auxClientIpPort).ip.toInteger() << connectingClientsList.at(auxClientIpPort).port << position.x << position.y;
+								pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::NEW_CLIENT << element.second.clientSalt << element.second.serverSalt << sf::Uint32(localPacketID) << auxNewClientID << connectingClientsList.at(auxClientIpPort).ip.toInteger() << connectingClientsList.at(auxClientIpPort).port << positionX << positionY;
 								socketStatus = udpSocket.send(pack, element.second.ip, element.second.port);
 								AddCriticalPacketToNonAcknowledgeList(pack, element.second.ip, element.second.port);
 								pack.clear();
 							}
 
-							pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::WELCOME << connectingClientsList.at(auxClientIpPort).clientSalt << connectingClientsList.at(auxClientIpPort).serverSalt << auxNewClientID << connectedClientsList.size();
+							unsigned int numberOfConnectedClients = connectedClientsList.size();
+
+							pack << COMMUNICATION_HEADER_SERVER_TO_CLIENT::WELCOME << connectingClientsList.at(auxClientIpPort).clientSalt << connectingClientsList.at(auxClientIpPort).serverSalt << auxNewClientID << positionX << positionY << numberOfConnectedClients;
 							for (std::pair<unsigned int, Client> element : connectedClientsList) {
-								pack << element.first << element.second.position.x << element.second.position.y;
+								float auxPositionX, auxPositionY;
+								auxPositionX = element.second.position.x;
+								auxPositionY = element.second.position.y;
+
+								pack << element.first << auxPositionX << auxPositionY;
 							}
 							socketStatus = udpSocket.send(pack, ip, port);
 							pack.clear();
 
 							// WE CREATE A NEW CLIENT AND PUT IT INTO THE CONNECTED CLIENTS MAP
 							Timer inactivityTimer;
-							inactivityTimer.start();							
+							inactivityTimer.start();		
+							Cell position;
+							position.x = positionX;
+							position.y = positionY;
 							Client newClient = Client(connectingClientsList.at(auxClientIpPort).ip, connectingClientsList.at(auxClientIpPort).port, connectingClientsList.at(auxClientIpPort).clientSalt, connectingClientsList.at(auxClientIpPort).serverSalt, inactivityTimer, position);
 
 							sv_semaphore.lock();
-							connectedClientsList.insert(std::pair<unsigned int, Client>(auxNewClientID, newClient));
+							if (connectedClientsList.find(auxNewClientID) == connectedClientsList.end()) // NOT FOUND
+							{
+								connectedClientsList.insert(std::pair<unsigned int, Client>(auxNewClientID, newClient));
+							}
+							
 							sv_semaphore.unlock();
 
 							// WE ERASE THE ENTRY FROM THE CONNECTING CLIENTS MAP
@@ -555,8 +572,13 @@ void receive() {
 						}
 						else // FOUND
 						{
-							listUnvalidatedMovePackets.at(auxClientID).positionX = positionX;
-							listUnvalidatedMovePackets.at(auxClientID).positionY = positionY;
+							// IF THE PACK WE GET IS OUTDATED, WE DISCARD IT
+							if (tempMoveID > listUnvalidatedMovePackets.at(auxClientID).moveID)
+							{
+								listUnvalidatedMovePackets.at(auxClientID).positionX = positionX;
+								listUnvalidatedMovePackets.at(auxClientID).positionY = positionY;
+							}
+							
 						}
 
 
