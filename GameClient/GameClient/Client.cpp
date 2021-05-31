@@ -10,6 +10,7 @@
 #include "shared.h"
 #include "timer.h"
 #include <GameInfo.h>
+#include <list>
 
 #define SIZE 10.f
 ///TAMAÑO EN PX DE LA VENTANA
@@ -30,6 +31,12 @@ struct Player
 {
 	float positionX;
 	float positionY;
+};
+
+struct AccumulatedMove
+{
+	float accumulatedPlayerMoveX = 0;
+	float accumulatedPlayerMoveY = 0;
 };
 
 
@@ -55,9 +62,11 @@ std::mutex mtx_messages;
 std::vector<std::string> aMensajes;
 
 Timer timerHello, timerInactivity, timerMove;
+AccumulatedMove currentAccumulatedMove;
+std::map<unsigned int, AccumulatedMove> listOfAccumulatedMoves;
+std::vector<unsigned int> auxListOfAccumulatedMoves;
+std::mutex semaphore;
 
-float accumulatedPlayerMoveX = 0;
-float accumulatedPlayerMoveY = 0;
 unsigned int localMoveID = 0;
 
 std::map<unsigned int, Player> listPlayers;
@@ -270,12 +279,41 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 				float playerPositionX, playerPositionY;
 
 				pack >> tempMoveID >> playerPositionX >> playerPositionY;
+				moveID = tempMoveID;
 				if (AreSaltsValid(auxServerSalt, auxClientSalt))
 				{
 					if (listPlayers.find(clientID) != listPlayers.end()) // FOUND
 					{
-						listPlayers.at(clientID).positionX = playerPositionX;
-						listPlayers.at(clientID).positionY = playerPositionY;
+						// SERVER HAD TO CORRECT THE CLIENT'S POSITION, SO WE DELETE ALL ACCUMULATED MOVES
+						if (listOfAccumulatedMoves.at(moveID).accumulatedPlayerMoveX != playerPositionX || listOfAccumulatedMoves.at(moveID).accumulatedPlayerMoveX != playerPositionX)
+						{
+							for (std::map<unsigned int, AccumulatedMove>::iterator it = listOfAccumulatedMoves.begin(); it != listOfAccumulatedMoves.end(); ++it)
+							{
+								auxListOfAccumulatedMoves.push_back(it->first);
+							}
+						}
+						else // SERVER DIDN'T HAVE TO CORRECT THE CLIENT'S POSITION, SO WE ONLY DELETE THE ACCUMULATED MOVES PRIOR TO MOVEID
+						{
+							for (std::map<unsigned int, AccumulatedMove>::iterator it = listOfAccumulatedMoves.begin(); it != listOfAccumulatedMoves.end(); ++it)
+							{
+								auxListOfAccumulatedMoves.push_back(it->first);
+								if (it->first == moveID)
+								{
+									break;
+								}
+							}
+						}
+
+						semaphore.lock();
+						for (std::vector<unsigned int>::iterator it = auxListOfAccumulatedMoves.begin(); it != auxListOfAccumulatedMoves.end(); ++it)
+						{
+							listOfAccumulatedMoves.erase(*it);
+						}
+						semaphore.unlock();
+						auxListOfAccumulatedMoves.clear();
+						
+						listPlayers.at(clientID).positionX = currentAccumulatedMove.accumulatedPlayerMoveX = playerPositionX;
+						listPlayers.at(clientID).positionY = currentAccumulatedMove.accumulatedPlayerMoveY = playerPositionY;
 					}
 
 				}
@@ -338,14 +376,17 @@ void TimerCheck()
 			}
 			if (timerMove.elapsedMilliseconds() > TIMER_CLIENT_SEND_ACCUMULATED_MOVES_IN_MILLISECONDS)
 			{				
-				if (accumulatedPlayerMoveX != 0 || accumulatedPlayerMoveY != 0)
+				if (currentAccumulatedMove.accumulatedPlayerMoveX != listPlayers.at(clientID).positionX || currentAccumulatedMove.accumulatedPlayerMoveY != listPlayers.at(clientID).positionY)
 				{
+					unsigned int moveID = GenerateMoveID();
 					pack.clear();
-					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::MOVE << clientSalt << serverSalt << clientID << GenerateMoveID() << listPlayers.at(clientID).positionX + accumulatedPlayerMoveX << listPlayers.at(clientID).positionY + accumulatedPlayerMoveY;
+					pack << COMMUNICATION_HEADER_CLIENT_TO_SERVER::MOVE << clientSalt << serverSalt << clientID << moveID << currentAccumulatedMove.accumulatedPlayerMoveX << currentAccumulatedMove.accumulatedPlayerMoveY;
 					socketStatus = udpSocket.send(pack, serverIP, serverPort);
 
-					accumulatedPlayerMoveX = 0;
-					accumulatedPlayerMoveY = 0;
+					listOfAccumulatedMoves.insert(std::pair<unsigned int, AccumulatedMove>(moveID, currentAccumulatedMove));
+
+					currentAccumulatedMove.accumulatedPlayerMoveX = listPlayers.at(clientID).positionX;
+					currentAccumulatedMove.accumulatedPlayerMoveY = listPlayers.at(clientID).positionY;
 				}
 				timerMove.start();
 			}
@@ -508,19 +549,19 @@ void DrawGraphics()
 				}
 				if (event.key.code == sf::Keyboard::Left)
 				{		
-					accumulatedPlayerMoveX -= 1;
+					currentAccumulatedMove.accumulatedPlayerMoveX -= 1;
 				}
 				else if (event.key.code == sf::Keyboard::Up)
 				{
-					accumulatedPlayerMoveY -= 1;
+					currentAccumulatedMove.accumulatedPlayerMoveY -= 1;
 				}
 				else if (event.key.code == sf::Keyboard::Right)
 				{
-					accumulatedPlayerMoveX += 1;
+					currentAccumulatedMove.accumulatedPlayerMoveX += 1;
 				}
 				else if (event.key.code == sf::Keyboard::Down)
 				{
-					accumulatedPlayerMoveY += 1;
+					currentAccumulatedMove.accumulatedPlayerMoveY += 1;
 				}
 				break;
 			}
