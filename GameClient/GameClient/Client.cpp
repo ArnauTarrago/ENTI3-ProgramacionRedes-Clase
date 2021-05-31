@@ -284,36 +284,40 @@ void Receive(sf::IpAddress _serverIP, unsigned short _serverPort)
 				{
 					if (listPlayers.find(clientID) != listPlayers.end()) // FOUND
 					{
-						// SERVER HAD TO CORRECT THE CLIENT'S POSITION, SO WE DELETE ALL ACCUMULATED MOVES
-						if (listOfAccumulatedMoves.at(moveID).accumulatedPlayerMoveX != playerPositionX || listOfAccumulatedMoves.at(moveID).accumulatedPlayerMoveX != playerPositionX)
+						// IF THE SERVER ISN'T SENDING OUTDATED INFORMATION
+						if (listOfAccumulatedMoves.find(moveID) != listOfAccumulatedMoves.end()) 
 						{
-							for (std::map<unsigned int, AccumulatedMove>::iterator it = listOfAccumulatedMoves.begin(); it != listOfAccumulatedMoves.end(); ++it)
+							// SERVER HAD TO CORRECT THE CLIENT'S POSITION, SO WE DELETE ALL ACCUMULATED MOVES
+							if (listOfAccumulatedMoves.at(moveID).accumulatedPlayerMoveX != playerPositionX || listOfAccumulatedMoves.at(moveID).accumulatedPlayerMoveX != playerPositionX)
 							{
-								auxListOfAccumulatedMoves.push_back(it->first);
-							}
-						}
-						else // SERVER DIDN'T HAVE TO CORRECT THE CLIENT'S POSITION, SO WE ONLY DELETE THE ACCUMULATED MOVES PRIOR TO MOVEID
-						{
-							for (std::map<unsigned int, AccumulatedMove>::iterator it = listOfAccumulatedMoves.begin(); it != listOfAccumulatedMoves.end(); ++it)
-							{
-								auxListOfAccumulatedMoves.push_back(it->first);
-								if (it->first == moveID)
+								for (std::map<unsigned int, AccumulatedMove>::iterator it = listOfAccumulatedMoves.begin(); it != listOfAccumulatedMoves.end(); ++it)
 								{
-									break;
+									auxListOfAccumulatedMoves.push_back(it->first);
 								}
 							}
-						}
+							else // SERVER DIDN'T HAVE TO CORRECT THE CLIENT'S POSITION, SO WE ONLY DELETE THE ACCUMULATED MOVES PRIOR TO MOVEID
+							{
+								for (std::map<unsigned int, AccumulatedMove>::iterator it = listOfAccumulatedMoves.begin(); it != listOfAccumulatedMoves.end(); ++it)
+								{
+									auxListOfAccumulatedMoves.push_back(it->first);
+									if (it->first == moveID)
+									{
+										break;
+									}
+								}
+							}
 
-						semaphore.lock();
-						for (std::vector<unsigned int>::iterator it = auxListOfAccumulatedMoves.begin(); it != auxListOfAccumulatedMoves.end(); ++it)
-						{
-							listOfAccumulatedMoves.erase(*it);
+							semaphore.lock();
+							for (std::vector<unsigned int>::iterator it = auxListOfAccumulatedMoves.begin(); it != auxListOfAccumulatedMoves.end(); ++it)
+							{
+								listOfAccumulatedMoves.erase(*it);
+							}
+							semaphore.unlock();
+							auxListOfAccumulatedMoves.clear();
+
+							listPlayers.at(clientID).positionX = currentAccumulatedMove.accumulatedPlayerMoveX = playerPositionX;
+							listPlayers.at(clientID).positionY = currentAccumulatedMove.accumulatedPlayerMoveY = playerPositionY;
 						}
-						semaphore.unlock();
-						auxListOfAccumulatedMoves.clear();
-						
-						listPlayers.at(clientID).positionX = currentAccumulatedMove.accumulatedPlayerMoveX = playerPositionX;
-						listPlayers.at(clientID).positionY = currentAccumulatedMove.accumulatedPlayerMoveY = playerPositionY;
 					}
 
 				}
