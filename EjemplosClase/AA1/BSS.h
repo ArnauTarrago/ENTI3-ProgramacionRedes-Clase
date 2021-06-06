@@ -1,7 +1,6 @@
 #ifndef BSS_INCLUDED
 #define BSS_INCLUDED
 #include <SFML/Network.hpp>
-#include <chrono>
 
 using namespace std;
 using namespace sf;
@@ -18,35 +17,42 @@ struct GameSession {
     }
 
     bool Add(MessageManager* message) {
-        //if (!message->send_peers(&players)) {
-        //    cout << "Connection lost: " << message->peer.socket << endl;
-        //    cout << "   Ip : " << message->peer.socket->getRemoteAddress() << endl;
-        //    cout << "   Port : " << message->peer.socket->getRemotePort() << endl;
-        //}
-        //else {
-        //}
         players.push_back(message);
         return players.size() >= MAX_PLAYERS;
     }
 
     void Close() {
+        for (list<MessageManager*>::const_iterator it = players.begin(); it != players.end(); it++) {
+            if (!(*it)->send_gamefull(players.size())) {
+                AddConnection((*it)->peer.socket, false);
+            }
+        }
         list<MessageManager*> tempplayers = list<MessageManager*>();
         for (list<MessageManager*>::const_iterator it = players.begin(); it != players.end(); it++) {
             if (!(*it)->send_peers(&tempplayers)) {
-                cout << "Connection lost: " << (*it)->peer.socket << endl;
-                cout << "   Ip : " << (*it)->peer.socket->getRemoteAddress() << endl;
-                cout << "   Port : " << (*it)->peer.socket->getRemotePort() << endl;
+                AddConnection((*it)->peer.socket, false);
             }
             else {
                 tempplayers.push_back(*it);
                 (*it)->peer.socket->disconnect();
             }
         }
-        players.clear();
+        //players.clear();
     }
 };
+enum SERVER_STATES {
+    SERVER_STATE_CONNECTING, SERVER_STATE_MANAGING
+    , STATE_COUNT
+};
+const static string SERVER_STATES_STRINGS[] = {
+    "CONNECTING",
+    "MANAGING",
+    "2",
+};
 struct BSS {
+    SERVER_STATES currentState = SERVER_STATES::SERVER_STATE_CONNECTING;
     const int MAX_PLAYERS_MIN = 3;
+    const int MAX_PLAYERS_MAX = 6;
 	vector<Peer> peerList = vector<Peer>();
 	list<MessageManager*> players = list<MessageManager*>();
 	list<MessageManager*> waitingplayers = list<MessageManager*>();
@@ -55,27 +61,22 @@ struct BSS {
 	Socket::Status status = Socket::Status::Disconnected;
 	TcpListener dispatcher;
     SocketSelector selector;
-    const std::chrono::milliseconds COUNTDOWN_MILLISECONDS = chrono::milliseconds(500);
-    chrono::steady_clock::time_point coundown = chrono::steady_clock::now();
 	BSS() : MAX_PLAYERS_MIN(MAXPLAYERS) {
-        
+        UpdateServer(this);
         while (true) {
-            cout << "Enter server port" << endl;
-            cin >> port;
+            AddMessage("Enter server port");
+            port = GetInput_Int();
             status = dispatcher.listen(port);
             if (status != Socket::Done) {
-                cout << "Port not available" << endl;
+                AddMessage("Port not available. Retry? (y/n)", RED);
                 dispatcher.close();
-                cout << "Retry? (y/n)" << endl;
-                char retry;
-                cin >> retry;
-                if (retry == 'Y' || retry == 'y')
+                if (GetInput_Confirmation())
                     continue;
                 else
                     return;
             }
             else {
-                cout << "Port connected, waiting for clients..." << endl << endl;
+                AddMessage("Port connected, waiting for clients...\n");
 
                 break;
             }
@@ -89,6 +90,8 @@ struct BSS {
         //    games.push_back(tempGame);
         //}
 
+        currentState = SERVER_STATES::SERVER_STATE_MANAGING;
+        UpdateServer(this);
         selector.add(dispatcher);
 
         while (true) {
@@ -97,27 +100,27 @@ struct BSS {
                     TcpSocket* temp = new TcpSocket();
                     if (dispatcher.accept(*temp) != Socket::Done)
                     {
-                        cout << "Connection not accepted" << endl;
+                        AddMessage("Connection not accepted", RED);
                     }
                     else {
-                        cout << "Connection: " << &temp << endl;
-                        cout << "   Ip : " << temp->getRemoteAddress() << endl;
-                        cout << "   Port : " << temp->getRemotePort() << endl;
+                        AddConnection(temp, true);
                         MessageManager* tempMessage = new MessageManager(temp);
                         players.push_back(tempMessage);
                         waitingplayers.push_back(tempMessage);
                         selector.add(*tempMessage->peer.socket);
                         if (!SendGames(tempMessage)) {
-                            cout << "Connection lost: " << &temp << endl;
-                            cout << "   Ip : " << temp->getRemoteAddress() << endl;
-                            cout << "   Port : " << temp->getRemotePort() << endl;
+                            AddConnection(temp, false);
                         }
                     }
+                    UpdateServer(this);
                 }
                 else {
-
                     for (list<MessageManager*>::iterator it = players.begin(); it != players.end(); it++)
                     {
+                        if (players.size() <= 0)
+                        {
+                            break;
+                        }
                         sf::TcpSocket& client = *(*it)->peer.socket;
                         if (selector.isReady(client)) {
                             bool create = false;
@@ -139,6 +142,7 @@ struct BSS {
                                     }
                                     if (notcreated) {
                                         maxplayers < MAX_PLAYERS_MIN ? maxplayers = MAX_PLAYERS_MIN : maxplayers = maxplayers;
+                                        maxplayers > MAX_PLAYERS_MAX ? maxplayers = MAX_PLAYERS_MAX : maxplayers = maxplayers;
                                         GameSession* tempGame = new GameSession(name, password, maxplayers);
                                         tempGame->players.push_back((*it));
                                         games.push_back(tempGame);
@@ -151,7 +155,6 @@ struct BSS {
                                     for (list<GameSession*>::iterator it2 = games.begin(); it2 != games.end(); it2++) {
                                         if ((*it2)->Join(name, password)) {
                                             if ((*it2)->Add((*it))) {
-                                                games.remove((*it2));
                                                 (*it)->send_ok();
                                                 waitingplayers.remove((*it));
                                                 notjoined = false;
@@ -161,7 +164,10 @@ struct BSS {
                                                     delete (*it3)->peer.socket;
                                                     delete* it3;
                                                 }
-                                                delete* it2;
+                                                ((*it2))->players.clear();
+                                                GameSession* temp = *it2;
+                                                games.remove((*it2));
+                                                delete temp;
                                             }
                                             else {
                                                 (*it)->send_ok();
@@ -180,9 +186,7 @@ struct BSS {
                                 }
                             }
                             else {
-                                cout << "Connection lost: " << &client << endl;
-                                cout << "   Ip : " << client.getRemoteAddress() << endl;
-                                cout << "   Port : " << client.getRemotePort() << endl;
+                                AddConnection(&client, false);
                                 for (list<GameSession*>::iterator it2 = games.begin(); it2 != games.end(); it2++) {
                                     try {
                                         (*it2)->players.remove((*it));
@@ -195,28 +199,31 @@ struct BSS {
                                 }
                                 catch (const exception& ex) {
                                 }
+                                MessageManager* temp = *it;
                                 players.remove((*it));
-                                delete (*it)->peer.socket;
-                                delete* it;
+                                delete (temp)->peer.socket;
+                                delete temp;
                             }
+                            UpdateServer(this);
+                            break;
                         }
                     }
                 }
             }
-            if (chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - coundown) > COUNTDOWN_MILLISECONDS) {
-                coundown = chrono::steady_clock::now();
-                //SEND GAMELIST
-            }
         }
         
 	}
-
-    bool SendGames(MessageManager* messages) {
+    const vector<GameSessionSend> ParseGames() {
         vector<GameSessionSend> tempgames;
         tempgames.reserve(games.size());
-        for (list<GameSession*>::iterator it = games.begin(); it != games.end(); it++) {
+        for (list<GameSession*>::const_iterator it = games.begin(); it != games.end(); it++) {
             tempgames.push_back(make_tuple((*it)->NAME, (*it)->players.size(), (*it)->MAX_PLAYERS, !(*it)->PASSWORD.empty()));
         }
+        return tempgames;
+    }
+    bool SendGames(MessageManager* messages) {
+        vector<GameSessionSend> tempgames = ParseGames();
+        PrintGamelist(tempgames);
         return messages->send_gamelist(&tempgames);
     }
 };

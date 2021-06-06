@@ -7,6 +7,23 @@ using namespace std;
 using namespace sf;
 
 #define GameSessionSend std::tuple<string, int, int, bool>
+#define GameSessionFilter std::tuple<string*, int*, int*, bool*>
+enum ORDER{ NONE, ASC, DESC};
+const static string ORDER_STRINGS[] = {
+    "NONE",
+    "ASC",
+    "DESC",
+};
+#define GameSessionOrder std::tuple<ORDER, ORDER, ORDER, ORDER>
+
+bool GameSessionOrder_Sort0Asc(GameSessionSend i, GameSessionSend j) { return (get<0>(i) < get<0>(j)); }
+bool GameSessionOrder_Sort0Desc(GameSessionSend i, GameSessionSend j) { return (get<0>(i) > get<0>(j)); }
+bool GameSessionOrder_Sort1Asc(GameSessionSend i, GameSessionSend j) { return (get<1>(i) < get<1>(j)); }
+bool GameSessionOrder_Sort1Desc(GameSessionSend i, GameSessionSend j) { return (get<1>(i) > get<1>(j)); }
+bool GameSessionOrder_Sort2Asc(GameSessionSend i, GameSessionSend j) { return (get<2>(i) < get<2>(j)); }
+bool GameSessionOrder_Sort2Desc(GameSessionSend i, GameSessionSend j) { return (get<2>(i) > get<2>(j)); }
+bool GameSessionOrder_Sort3Asc(GameSessionSend i, GameSessionSend j) { return (get<3>(i) < get<3>(j)); }
+bool GameSessionOrder_Sort3Desc(GameSessionSend i, GameSessionSend j) { return (get<3>(i) > get<3>(j)); }
 
 struct Peer
 {
@@ -24,8 +41,7 @@ struct PeerComplete : Peer
 };
 enum COMUNICATION_MSGS
 {
-    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS, MSG_GREET, MSG_CHAT, MSG_VALIDATION, MSG_GAMEQUERY, MSG_GAMELIST, MSG_TURNDONE, MSG_REQUESTCARD
-    , MSG_GAMEOVER
+    MSG_NULL, MSG_OK, MSG_KO, MSG_PEERS, MSG_GREET, MSG_CHAT, MSG_GAMEQUERY, MSG_GAMELIST, MSG_GAMEFULL, MSG_REQUESTCARD
     , MSG_COUNT
 };
 enum GAME_QUERY {
@@ -62,13 +78,13 @@ public:
         Socket::Status receiveStatus = this->peer.socket->receive(pack);
         this->lastStatus = receiveStatus;
         if (receiveStatus == Socket::Disconnected) {
-            cout << "Desconectado" << endl;
+            //cout << "Desconectado" << endl;
             this->connected = false;
             this->peer.socket->disconnect();
         }
         if (receiveStatus != Socket::Done)
         {
-            cout << "Recepción de datos fallida" << endl;
+            //cout << "Recepción de datos fallida" << endl;
         }
         else {
             //cout << "Mensaje recibido: " << endl << pack << endl;
@@ -80,7 +96,7 @@ public:
         Socket::Status receiveStatus = this->peer.socket->send(packet_);
         this->lastStatus = receiveStatus;
         if (receiveStatus == Socket::Disconnected) {
-            cout << "Desconectado" << endl;
+            //cout << "Desconectado" << endl;
             return false;
             this->connected = false;
             this->peer.socket->disconnect();
@@ -88,7 +104,7 @@ public:
         if (receiveStatus != Socket::Done)
         {
             return false;
-            cout << "Envio de datos fallido" << endl;
+            //cout << "Envio de datos fallido" << endl;
         }
         else {
             //cout << "Mensaje enviado: " << endl << packet_ << endl;
@@ -134,16 +150,41 @@ public:
         }
         return true;
     }
+    bool send_gamefull(const int players_) {
+        Packet pack;
+        pack << COMUNICATION_MSGS::MSG_GAMEFULL;
+        pack << static_cast<sf::Uint32>(players_);
+        if (!send_message(pack)) {
+            return false;
+        }
+        return true;
+    }
+	bool send_gameQuery(bool isCreatingServer, string name, string password, int maxPlayers) {
+		Packet pack;
+		pack << COMUNICATION_MSGS::MSG_GAMEQUERY;
+		if (isCreatingServer)
+		{
+			pack << GAME_QUERY::GAME_SETUP;
+		}
+		else
+		{
+			pack << GAME_QUERY::GAME_JOIN;
+		}
+		pack << name << password << maxPlayers;
+		return send_message(pack);
+	}
     bool send_greet(int _Id) {
         Packet pack;
         pack << COMUNICATION_MSGS::MSG_GREET << _Id;
         return send_message(pack);
     }
-    //bool send_seed(int _seed) {
-    //    Packet pack;
-    //    pack << COMUNICATION_MSGS::MSG_SEED << _seed;
-    //    return send_message(pack);
-    //}
+	bool send_requestCard(int playerID, int category, int number)
+	{
+		Packet pack;
+		pack << COMUNICATION_MSGS::MSG_REQUESTCARD << playerID << category << number;
+		return send_message(pack);
+	}
+
 #pragma endregion
 #pragma region RECEPCIONES ESPECIFICAS
     bool receive_peers(vector<Peer>* _peers) {
@@ -211,6 +252,18 @@ public:
         }
         return false;
     }
+    bool receive_gamefull(int * players_) {
+        Packet pack = receive_message();
+        int msg = COMUNICATION_MSGS::MSG_NULL;
+        if (pack >> msg && msg == COMUNICATION_MSGS::MSG_GAMEFULL) {
+            int id = 0;
+            if (pack >> id) {
+                *players_ = id;
+                return true;
+            }
+        }
+        return false;
+    }
     bool receive_greet(int * Id_) {
         Packet pack = receive_message();
         int msg = COMUNICATION_MSGS::MSG_NULL;
@@ -228,7 +281,16 @@ public:
         Packet pack = receive_message();
         int msg = COMUNICATION_MSGS::MSG_NULL;
         if (pack >> msg && msg == COMUNICATION_MSGS::MSG_GAMEQUERY) {
-            if (pack >> msg >> *name >> *password) {
+            string tempName;
+            if (pack >> msg >> tempName >> *password) {
+                stringstream strstr;
+                for (size_t i = 0; i < tempName.size(); i++)
+                {
+                    if (i >= 30)
+                        break;
+                    strstr << tempName[i];
+                }
+                *name = string(strstr.str());
                 if (msg == GAME_QUERY::GAME_JOIN) {
                     *create = false;
                     return true;
@@ -242,6 +304,32 @@ public:
         }
         return false;
     }
+	bool receive_requestCard(int * playerID, int * category, int * number) {
+		Packet pack = receive_message();
+		int msg = COMUNICATION_MSGS::MSG_NULL;
+		if (pack >> msg && msg == COMUNICATION_MSGS::MSG_REQUESTCARD) {
+			int auxPlayerID = -1;
+			int auxCategory = -1;
+			int auxNumber = -1;
+
+			if (pack >> auxPlayerID) {
+				*playerID = auxPlayerID;
+				if (pack >> auxCategory)
+				{
+					*category = auxCategory;
+					if (pack >> auxNumber)
+					{
+						*number = auxNumber;
+						return true;
+					}
+				}				
+				
+			}
+		}
+		return false;
+	}
+
+
 
     //bool receive_seed(int * seed_) {
     //    packet pack = receive_message();
